@@ -1,0 +1,18 @@
+appId: com.example.capsulecardcamera
+---
+# Launch through the debug-only deep link; direct launch was brittle on this camera-heavy screen.
+- stopApp: com.example.capsulecardcamera
+- openLink: "piccam://maestro"
+- assertVisible:
+    id: "pull-island-camera-demo"
+- assertVisible:
+    id: "home-frame-studio-panel"
+- tapOn:
+    id: "settings-button"
+    point: "50%,80%"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 800
+- assertVisible:
+    id: "camera-settings-screen"
+- assertVisible:
+    id: "sound-effects-setting"

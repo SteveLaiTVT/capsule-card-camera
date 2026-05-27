@@ -1,0 +1,29 @@
+appId: com.example.capsulecardcamera
+---
+# Smoke the settings-to-frame-manager path without touching AI generation or camera capture.
+- stopApp: com.example.capsulecardcamera
+- openLink: "piccam://maestro"
+- assertVisible:
+    id: "pull-island-camera-demo"
+- tapOn:
+    id: "settings-button"
+    point: "50%,80%"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 800
+- assertVisible:
+    id: "camera-settings-screen"
+- scrollUntilVisible:
+    element:
+      id: "open-frame-manager"
+    direction: DOWN
+    timeout: 8000
+    speed: 40
+    visibilityPercentage: 70
+- tapOn:
+    id: "open-frame-manager"
+    retryTapIfNoChange: true
+    waitToSettleTimeoutMs: 800
+- assertVisible:
+    id: "frame-management-screen"
+- assertVisible:
+    id: "frame-manager-generate-button"

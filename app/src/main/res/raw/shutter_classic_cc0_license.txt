@@ -1,0 +1,8 @@
+Title: Camera
+File: photo.ogg
+Author: themightyglider
+Source: https://opengameart.org/content/camera
+License: CC0
+
+This app packages the file as shutter_classic_cc0.ogg and adjusts playback
+rate/volume in-app for the available shutter tone options.
