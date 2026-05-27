@@ -40,6 +40,9 @@ private val PhotoTagChipColor = Color(0xFFFFF4E8).copy(alpha = 0.9f)
 internal fun PhotoWall(
   photos: List<CapturedPhoto>,
   gridHeight: Dp,
+  columns: Int = 3,
+  horizontalPadding: Dp = 28.dp,
+  itemAspectRatio: Float = 0.78f,
   selectedPhotoIds: Set<Int>,
   selectionMode: Boolean,
   onPhotoClick: (CapturedPhoto) -> Unit,
@@ -49,13 +52,13 @@ internal fun PhotoWall(
   if (photos.isEmpty()) return
 
   LazyVerticalGrid(
-    columns = GridCells.Fixed(3),
+    columns = GridCells.Fixed(columns),
     modifier =
       modifier
         .fillMaxWidth()
         .height(gridHeight)
         .testTag("photo-wall"),
-    contentPadding = PaddingValues(horizontal = 28.dp, vertical = 4.dp),
+    contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 4.dp),
     horizontalArrangement = Arrangement.spacedBy(12.dp),
     verticalArrangement = Arrangement.spacedBy(12.dp),
     userScrollEnabled = photos.size > 3,
@@ -67,7 +70,7 @@ internal fun PhotoWall(
           Modifier
             .animateItem()
             .fillMaxWidth()
-            .aspectRatio(0.78f)
+            .aspectRatio(itemAspectRatio)
             .pointerInput(photo.id, selectionMode, selected) {
               detectTapGestures(
                 onTap = { onPhotoClick(photo) },
@@ -143,6 +146,7 @@ internal fun PhotoSelectionToolbar(
   copy: CameraCopy,
   onClearSelection: () -> Unit,
   onSaveSelected: () -> Unit,
+  onDeleteSelected: () -> Unit,
   onFrameSelected: (PhotoFrameStyle) -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -170,8 +174,9 @@ internal fun PhotoSelectionToolbar(
         fontWeight = FontWeight.Bold,
         modifier = Modifier.weight(1f),
       )
-      PhotoSelectionActionChip(label = copy.saveSelectedPhotos, onClick = onSaveSelected)
-      PhotoSelectionActionChip(label = copy.clearSelectionLabel, onClick = onClearSelection)
+      PhotoSelectionActionChip(label = copy.saveSelectedPhotos, onClick = onSaveSelected, testTag = "save-selected-photos")
+      PhotoSelectionActionChip(label = copy.deleteSelectedPhotos, onClick = onDeleteSelected, destructive = true, testTag = "delete-selected-photos")
+      PhotoSelectionActionChip(label = copy.clearSelectionLabel, onClick = onClearSelection, testTag = "clear-photo-selection")
     }
 
     Row(
@@ -196,10 +201,12 @@ private fun PhotoSelectionActionChip(
   label: String,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
+  destructive: Boolean = false,
+  testTag: String? = null,
 ) {
   Text(
     text = label,
-    color = FrameBlack,
+    color = if (destructive) FrameWarmWhite else FrameBlack,
     fontSize = 12.sp,
     lineHeight = 14.sp,
     fontWeight = FontWeight.Bold,
@@ -209,8 +216,9 @@ private fun PhotoSelectionActionChip(
     modifier =
       modifier
         .clip(RoundedCornerShape(12.dp))
-        .background(FrameGreen)
+        .background(if (destructive) FrameRed else FrameGreen)
         .clickable(onClick = onClick)
+        .then(if (testTag == null) Modifier else Modifier.testTag(testTag))
         .padding(horizontal = 12.dp, vertical = 8.dp),
   )
 }

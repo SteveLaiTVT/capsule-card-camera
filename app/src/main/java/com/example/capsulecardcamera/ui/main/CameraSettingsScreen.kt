@@ -173,6 +173,28 @@ internal fun CameraSettingsScreen(
       }
 
       SettingGroup(
+        title = copy.dynamicIslandCoverTitle,
+        modifier =
+          Modifier
+            .padding(top = 24.dp)
+            .testTag("dynamic-island-cover-setting"),
+      ) {
+        SettingOptionsRow {
+          DynamicIslandCoverMode.entries.forEach { coverMode ->
+            SettingOption(
+              label = coverMode.displayName(copy),
+              selected = preferences.dynamicIslandCoverMode == coverMode,
+              onClick = { onPreferencesChanged(preferences.copy(dynamicIslandCoverMode = coverMode)) },
+              modifier =
+                Modifier
+                  .weight(1f)
+                  .testTag("dynamic-island-cover-${coverMode.storageKey}"),
+            )
+          }
+        }
+      }
+
+      SettingGroup(
         title = copy.aiModelLabel,
         modifier =
           Modifier

@@ -76,6 +76,28 @@ internal fun applyFrameStyleToCapturedPhotos(
   }
 }
 
+internal fun deleteCapturedPhotos(
+  photos: List<CapturedPhoto>,
+  photoIds: Set<Int>,
+): List<CapturedPhoto> {
+  if (photoIds.isEmpty()) return photos
+  return photos.filterNot { it.id in photoIds }
+}
+
+internal fun updateCapturedPhotoBitmap(
+  photos: List<CapturedPhoto>,
+  photoId: Int,
+  bitmap: Bitmap,
+  aiEnhancementApplied: Boolean = false,
+): List<CapturedPhoto> =
+  photos.map { photo ->
+    if (photo.id == photoId) {
+      photo.copy(bitmap = bitmap, aiEnhancementApplied = photo.aiEnhancementApplied || aiEnhancementApplied)
+    } else {
+      photo
+    }
+  }
+
 internal fun toggleCapturedPhotoSelection(
   selectedPhotoIds: Set<Int>,
   photoId: Int,

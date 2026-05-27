@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,8 +24,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -128,15 +132,39 @@ internal fun RoundControlButton(
   onClick: () -> Unit,
   icon: ControlIcon,
   modifier: Modifier = Modifier,
+  onLongClick: (() -> Unit)? = null,
 ) {
+  val inputModifier =
+    if (onLongClick == null) {
+      Modifier.clickable(onClick = onClick)
+    } else {
+      Modifier.pointerInput(onClick, onLongClick) {
+        detectTapGestures(
+          onTap = { onClick() },
+          onLongPress = { onLongClick() },
+        )
+      }
+    }
   Box(
     modifier =
       modifier
         .clip(CircleShape)
         .background(color)
         .border(1.4.dp, Color.Black.copy(alpha = 0.16f), CircleShape)
-        .clickable(onClick = onClick)
-        .semantics { this.contentDescription = contentDescription },
+        .then(inputModifier)
+        .semantics {
+          this.contentDescription = contentDescription
+          if (onLongClick != null) {
+            onClick {
+              onClick()
+              true
+            }
+            onLongClick {
+              onLongClick()
+              true
+            }
+          }
+        },
     contentAlignment = Alignment.Center,
   ) {
     Canvas(modifier = Modifier.size(23.dp)) {

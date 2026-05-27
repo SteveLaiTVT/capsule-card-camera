@@ -78,6 +78,7 @@ internal data class CapturedPhoto(
   val aiState: PhotoAiState = PhotoAiState.Idle,
   val selectedAiTags: Set<String> = emptySet(),
   val generatedFrameSpec: GeneratedFrameSpec? = null,
+  val aiEnhancementApplied: Boolean = false,
   val frameGenerationState: FrameGenerationState = FrameGenerationState.Idle,
   val frameConversation: List<FrameConversationMessage> = emptyList(),
 )

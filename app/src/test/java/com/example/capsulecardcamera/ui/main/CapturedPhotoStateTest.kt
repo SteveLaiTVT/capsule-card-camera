@@ -79,6 +79,17 @@ class CapturedPhotoStateTest {
   }
 
   @Test
+  fun deleteCapturedPhotos_removesSelectedPhotosOnly() {
+    val first = capturedPhoto(id = 1, frameStyle = PhotoFrameStyle.Stamp)
+    val second = capturedPhoto(id = 2, frameStyle = PhotoFrameStyle.Polaroid)
+    val third = capturedPhoto(id = 3, frameStyle = PhotoFrameStyle.Film)
+
+    val updated = deleteCapturedPhotos(listOf(first, second, third), photoIds = setOf(1, 3))
+
+    assertEquals(listOf(second), updated)
+  }
+
+  @Test
   fun toFrameSaveRequest_keepsOnlyMatchingGeneratedFrameSpec() {
     val bitmap = BitmapFixtures.bitmap()
     val spec = generatedFrameSpec(baseStyle = PhotoFrameStyle.ColorPop, title = "Bloom pop")

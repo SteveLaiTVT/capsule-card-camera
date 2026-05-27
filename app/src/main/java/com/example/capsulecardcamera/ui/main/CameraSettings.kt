@@ -9,6 +9,7 @@ private const val LanguageKey = "language"
 private const val AlbumKey = "album"
 private const val LensKey = "lens"
 private const val CameraDisplayStyleKey = "camera_display_style"
+private const val DynamicIslandCoverModeKey = "dynamic_island_cover_mode"
 private const val SoundEffectsEnabledKey = "sound_effects_enabled"
 private const val ShutterSoundStyleKey = "shutter_sound_style"
 private const val SoundEffectVolumeKey = "sound_effect_volume"
@@ -18,6 +19,7 @@ internal data class CameraPreferences(
   val defaultAlbum: DefaultAlbum = DefaultAlbum.Capsule,
   val cameraLens: CameraLens = CameraLens.Front,
   val cameraDisplayStyle: CameraDisplayStyle = CameraDisplayStyle.PullList,
+  val dynamicIslandCoverMode: DynamicIslandCoverMode = DynamicIslandCoverMode.Comfort,
   val soundEffectsEnabled: Boolean = true,
   val shutterSoundStyle: ShutterSoundStyle = ShutterSoundStyle.Classic,
   val soundEffectVolume: SoundEffectVolume = SoundEffectVolume.Normal,
@@ -46,6 +48,12 @@ internal enum class CameraLens(val storageKey: String) {
 internal enum class CameraDisplayStyle(val storageKey: String) {
   PullList("pull_list"),
   StageList("stage_list"),
+}
+
+internal enum class DynamicIslandCoverMode(val storageKey: String) {
+  Precise("precise"),
+  Comfort("comfort"),
+  Maximum("maximum"),
 }
 
 internal enum class ShutterSoundStyle(
@@ -95,6 +103,10 @@ internal data class CameraCopy(
   val cameraDisplayStyleTitle: String,
   val cameraDisplayStylePullLabel: String,
   val cameraDisplayStyleStageLabel: String,
+  val dynamicIslandCoverTitle: String,
+  val dynamicIslandCoverPreciseLabel: String,
+  val dynamicIslandCoverComfortLabel: String,
+  val dynamicIslandCoverMaximumLabel: String,
   val defaultFrameTitle: String,
   val photoFrameTitle: String,
   val frameStyleTitle: String,
@@ -107,6 +119,7 @@ internal data class CameraCopy(
   val selectedPhotosTemplate: String,
   val clearSelectionLabel: String,
   val saveSelectedPhotos: String,
+  val deleteSelectedPhotos: String,
   val aiInsightTitle: String,
   val aiIdle: String,
   val aiPreparing: String,
@@ -167,10 +180,11 @@ internal fun loadCameraPreferences(context: Context): CameraPreferences {
   val preferences = context.applicationContext.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
   return CameraPreferences(
     language = preferences.getString(LanguageKey, null).toCameraLanguage(),
-	    defaultAlbum = preferences.getString(AlbumKey, null).toDefaultAlbum(),
-	    cameraLens = preferences.getString(LensKey, null).toCameraLens(),
+    defaultAlbum = preferences.getString(AlbumKey, null).toDefaultAlbum(),
+    cameraLens = preferences.getString(LensKey, null).toCameraLens(),
     cameraDisplayStyle = preferences.getString(CameraDisplayStyleKey, null).toCameraDisplayStyle(),
-	    soundEffectsEnabled = preferences.getBoolean(SoundEffectsEnabledKey, true),
+    dynamicIslandCoverMode = preferences.getString(DynamicIslandCoverModeKey, null).toDynamicIslandCoverMode(),
+    soundEffectsEnabled = preferences.getBoolean(SoundEffectsEnabledKey, true),
     shutterSoundStyle = preferences.getString(ShutterSoundStyleKey, null).toShutterSoundStyle(),
     soundEffectVolume = preferences.getString(SoundEffectVolumeKey, null).toSoundEffectVolume(),
   )
@@ -184,10 +198,11 @@ internal fun saveCameraPreferences(
     .getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
     .edit()
     .putString(LanguageKey, preferences.language.storageKey)
-	    .putString(AlbumKey, preferences.defaultAlbum.storageKey)
-	    .putString(LensKey, preferences.cameraLens.storageKey)
+    .putString(AlbumKey, preferences.defaultAlbum.storageKey)
+    .putString(LensKey, preferences.cameraLens.storageKey)
     .putString(CameraDisplayStyleKey, preferences.cameraDisplayStyle.storageKey)
-	    .putBoolean(SoundEffectsEnabledKey, preferences.soundEffectsEnabled)
+    .putString(DynamicIslandCoverModeKey, preferences.dynamicIslandCoverMode.storageKey)
+    .putBoolean(SoundEffectsEnabledKey, preferences.soundEffectsEnabled)
     .putString(ShutterSoundStyleKey, preferences.shutterSoundStyle.storageKey)
     .putString(SoundEffectVolumeKey, preferences.soundEffectVolume.storageKey)
     .apply()
@@ -213,13 +228,17 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         closeSettingsContentDescription = "关闭设置",
         frameSettingsContentDescription = "相框设置",
         closePreviewContentDescription = "关闭预览",
-	        shutterContentDescription = "快门",
-	        homePullHintTitle = "下拉打开相机",
-	        homePullHintSubtitle = "照片会打印到列表，并自动进行端侧分析",
-	        cameraDisplayStyleTitle = "拍照界面",
-	        cameraDisplayStylePullLabel = "列表相机",
-	        cameraDisplayStyleStageLabel = "拍照台",
-	        defaultFrameTitle = "默认相框",
+        shutterContentDescription = "快门",
+        homePullHintTitle = "下拉打开相机",
+        homePullHintSubtitle = "照片会打印到列表，并自动进行端侧分析",
+        cameraDisplayStyleTitle = "拍照界面",
+        cameraDisplayStylePullLabel = "列表相机",
+        cameraDisplayStyleStageLabel = "拍照台",
+        dynamicIslandCoverTitle = "灵动岛遮罩",
+        dynamicIslandCoverPreciseLabel = "精确",
+        dynamicIslandCoverComfortLabel = "舒适",
+        dynamicIslandCoverMaximumLabel = "最大",
+        defaultFrameTitle = "默认相框",
         photoFrameTitle = "照片相框",
         frameStyleTitle = "相框样式",
         savePhotoWithFrame = "保存带相框照片",
@@ -231,6 +250,7 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         selectedPhotosTemplate = "已选 %d 张",
         clearSelectionLabel = "完成",
         saveSelectedPhotos = "保存所选",
+        deleteSelectedPhotos = "删除",
         aiInsightTitle = "端侧 AI 标签",
         aiIdle = "等待分析",
         aiPreparing = "正在准备端侧模型",
@@ -304,13 +324,17 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         closeSettingsContentDescription = "Close settings",
         frameSettingsContentDescription = "Frame settings",
         closePreviewContentDescription = "Close preview",
-	        shutterContentDescription = "Shutter",
-	        homePullHintTitle = "Pull down to open camera",
-	        homePullHintSubtitle = "Photos print to the list and analyze on device",
-	        cameraDisplayStyleTitle = "Camera view",
-	        cameraDisplayStylePullLabel = "List camera",
-	        cameraDisplayStyleStageLabel = "Stage camera",
-	        defaultFrameTitle = "Default frame",
+        shutterContentDescription = "Shutter",
+        homePullHintTitle = "Pull down to open camera",
+        homePullHintSubtitle = "Photos print to the list and analyze on device",
+        cameraDisplayStyleTitle = "Camera view",
+        cameraDisplayStylePullLabel = "List camera",
+        cameraDisplayStyleStageLabel = "Stage camera",
+        dynamicIslandCoverTitle = "Dynamic island cover",
+        dynamicIslandCoverPreciseLabel = "Precise",
+        dynamicIslandCoverComfortLabel = "Comfort",
+        dynamicIslandCoverMaximumLabel = "Maximum",
+        defaultFrameTitle = "Default frame",
         photoFrameTitle = "Photo frame",
         frameStyleTitle = "Frame style",
         savePhotoWithFrame = "Save photo with frame",
@@ -322,6 +346,7 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         selectedPhotosTemplate = "%d selected",
         clearSelectionLabel = "Done",
         saveSelectedPhotos = "Save selected",
+        deleteSelectedPhotos = "Delete",
         aiInsightTitle = "On-device AI tags",
         aiIdle = "Waiting to analyze",
         aiPreparing = "Preparing on-device model",
@@ -398,6 +423,13 @@ internal fun CameraDisplayStyle.displayName(copy: CameraCopy): String =
     CameraDisplayStyle.StageList -> copy.cameraDisplayStyleStageLabel
   }
 
+internal fun DynamicIslandCoverMode.displayName(copy: CameraCopy): String =
+  when (this) {
+    DynamicIslandCoverMode.Precise -> copy.dynamicIslandCoverPreciseLabel
+    DynamicIslandCoverMode.Comfort -> copy.dynamicIslandCoverComfortLabel
+    DynamicIslandCoverMode.Maximum -> copy.dynamicIslandCoverMaximumLabel
+  }
+
 internal fun CameraCopy.frameStyleLabel(frameStyle: PhotoFrameStyle): String =
   when (frameStyle) {
     PhotoFrameStyle.Stamp -> stampFrameLabel
@@ -450,6 +482,9 @@ private fun String?.toCameraLens(): CameraLens =
 
 private fun String?.toCameraDisplayStyle(): CameraDisplayStyle =
   CameraDisplayStyle.entries.firstOrNull { it.storageKey == this } ?: CameraDisplayStyle.PullList
+
+private fun String?.toDynamicIslandCoverMode(): DynamicIslandCoverMode =
+  DynamicIslandCoverMode.entries.firstOrNull { it.storageKey == this } ?: DynamicIslandCoverMode.Comfort
 
 private fun String?.toShutterSoundStyle(): ShutterSoundStyle =
   ShutterSoundStyle.entries.firstOrNull { it.storageKey == this } ?: ShutterSoundStyle.Classic

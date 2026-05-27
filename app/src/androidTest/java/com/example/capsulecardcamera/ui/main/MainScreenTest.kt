@@ -107,21 +107,24 @@ class MainScreenTest {
   }
 
   @Test
-  fun stageCamera_usesDedicatedVideoStyleControls() {
+  fun stageCamera_keepsShutterAndCornerControls() {
     composeTestRule.setContent {
       StageCamera(
-        statusBarHeight = 24.dp,
         navigationBarHeight = 16.dp,
         maxWidth = 390.dp,
         maxHeight = 840.dp,
+        dynamicIslandMetrics = fallbackDynamicIslandMetrics(390.dp),
         hasCameraPermission = false,
         cameraLens = CameraLens.Front,
         copy = CameraPreferences(language = CameraLanguage.English).copyText(),
         onImageCaptureReady = {},
-        onFrameSettingsClick = {},
-        onFrameManagerClick = {},
+        albumOpen = false,
+        albumFlipProgress = 0f,
+        latestAlbumPhoto = null,
+        captureCurtainProgress = 1f,
+        onAlbumClick = {},
+        onAlbumLongClick = {},
         onSettingsClick = {},
-        onLensToggleClick = {},
         onShutterClick = {},
       )
     }
@@ -129,8 +132,15 @@ class MainScreenTest {
     composeTestRule.onNodeWithTag("stage-camera").assertExists()
     composeTestRule.onNodeWithTag("stage-dynamic-island").assertExists()
     composeTestRule.onNodeWithTag("stage-preview-card").assertExists()
-    composeTestRule.onNodeWithTag("stage-tool-row").assertExists()
+    composeTestRule.onNodeWithTag("stage-shutter-curtain").assertExists()
     composeTestRule.onNodeWithTag("stage-shutter-button").assertExists()
+    composeTestRule.onNodeWithTag("stage-album-button").assertExists()
+    composeTestRule.onNodeWithTag("stage-settings-button").assertExists()
+    composeTestRule.onAllNodesWithTag("stage-tool-row").assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag("stage-tool-flash").assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag("stage-tool-frame").assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag("stage-tool-lens").assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag("stage-frame-manager-button").assertCountEquals(0)
     composeTestRule.onAllNodesWithTag("countdown-value").assertCountEquals(0)
   }
 
@@ -173,7 +183,7 @@ class MainScreenTest {
     composeTestRule.onNodeWithTag("shutter-sound-style-setting").assertExists()
     composeTestRule.onNodeWithTag("sound-volume-setting").assertExists()
 
-    composeTestRule.onNodeWithTag("sound-effects-off").performClick()
+    composeTestRule.onNodeWithTag("sound-effects-off").performScrollTo().performClick()
 
     composeTestRule.onAllNodesWithTag("shutter-sound-style-setting").assertCountEquals(0)
     composeTestRule.onAllNodesWithTag("sound-volume-setting").assertCountEquals(0)
@@ -216,6 +226,29 @@ class MainScreenTest {
 
     composeTestRule.runOnIdle {
       assertEquals(CameraDisplayStyle.StageList, selectedPreferences.cameraDisplayStyle)
+    }
+  }
+
+  @Test
+  fun settingsScreen_switchesDynamicIslandCoverMode() {
+    var selectedPreferences = CameraPreferences(language = CameraLanguage.English)
+    composeTestRule.setContent {
+      var preferences by remember { mutableStateOf(selectedPreferences) }
+      CameraSettingsScreen(
+        preferences = preferences,
+        onPreferencesChanged = {
+          preferences = it
+          selectedPreferences = it
+        },
+        onClose = {},
+      )
+    }
+
+    composeTestRule.onNodeWithTag("dynamic-island-cover-setting").assertExists()
+    composeTestRule.onNodeWithTag("dynamic-island-cover-maximum").performScrollTo().performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(DynamicIslandCoverMode.Maximum, selectedPreferences.dynamicIslandCoverMode)
     }
   }
 

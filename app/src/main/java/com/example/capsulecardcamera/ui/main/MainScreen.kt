@@ -8,10 +8,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.camera.core.ImageCapture
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -73,6 +75,8 @@ private const val CountdownStepMillis = 850L
 private const val FullScreenHintStartProgress = 1.04f
 private const val FullScreenCommitProgress = 1.24f
 private const val FullScreenEndProgress = 1.66f
+private const val StageCapturePrintDurationMillis = 2600
+private const val StageAlbumFlipDurationMillis = 560
 
 @Composable
 fun MainScreen(
@@ -127,11 +131,20 @@ private fun PullDownIslandCameraDemo(
   var suppressCountdownAtExpanded by remember { mutableStateOf(false) }
   val captureFlashAlpha = remember { Animatable(0f) }
   val thumbnailFlightProgress = remember { Animatable(1f) }
-  var flyingThumbnail by remember { mutableStateOf<Bitmap?>(null) }
+  val stageCaptureCurtainProgress = remember { Animatable(0f) }
+  var cameraSceneTuning by remember { mutableStateOf(CameraSceneTuning.Neutral) }
+  var flyingThumbnail by remember { mutableStateOf<CapturedPhoto?>(null) }
   var captureFeedbackMode by remember { mutableStateOf(CaptureFeedbackMode.PullList) }
   var nextPhotoId by remember { mutableIntStateOf(0) }
   var capturedPhotos by remember { mutableStateOf<List<CapturedPhoto>>(emptyList()) }
   var selectedPhotoIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
+  var isStageAlbumOpen by remember { mutableStateOf(false) }
+  val stageAlbumFlipProgress by
+    animateFloatAsState(
+      targetValue = if (isStageCamera && isStageAlbumOpen) 1f else 0f,
+      animationSpec = tween(durationMillis = StageAlbumFlipDurationMillis, easing = FastOutSlowInEasing),
+      label = "stageAlbumFlipProgress",
+    )
   var defaultFrameStyle by remember { mutableStateOf(PhotoFrameStyle.Polaroid) }
   var defaultGeneratedFrameSpec by remember { mutableStateOf<GeneratedFrameSpec?>(null) }
   var customFrameSpecs by remember { mutableStateOf<List<GeneratedFrameSpec>>(emptyList()) }
@@ -341,7 +354,7 @@ private fun PullDownIslandCameraDemo(
     }
   }
 
-  fun addCapturedPhoto(bitmap: Bitmap): Int {
+  fun addCapturedPhoto(bitmap: Bitmap): CapturedPhoto {
     val photoId = nextPhotoId
     val captureStyle =
       if (defaultGeneratedFrameSpec != null) {
@@ -352,7 +365,7 @@ private fun PullDownIslandCameraDemo(
     val photo = createCapturedPhoto(photoId, bitmap, defaultFrameStyle, defaultGeneratedFrameSpec, captureStyle)
     nextPhotoId += 1
     capturedPhotos = prependCapturedPhoto(capturedPhotos, photo)
-    return photoId
+    return photo
   }
 
   fun maybeGeneratePhotoAwareFrame(photoId: Int) {
@@ -361,6 +374,23 @@ private fun PullDownIslandCameraDemo(
     if (photo.frameGenerationState == FrameGenerationState.Generating) return
     if (photo.aiState !is PhotoAiState.Ready) return
     generateFrameForPhoto(photoId, photo.captureStyle.photoAwareFrameInstruction(photo.generatedFrameSpec))
+  }
+
+  suspend fun applyPhotoAiEnhancement(
+    photoId: Int,
+    insight: PhotoInsight,
+  ) {
+    val photo = capturedPhotos.firstOrNull { it.id == photoId } ?: return
+    if (photo.aiEnhancementApplied) return
+    val profile = PhotoEnhancementProfile.fromInsight(insight)
+    val enhancedBitmap = withContext(Dispatchers.Default) { enhanceBitmap(photo.bitmap, profile) }
+    capturedPhotos =
+      updateCapturedPhotoBitmap(
+        photos = capturedPhotos,
+        photoId = photoId,
+        bitmap = enhancedBitmap,
+        aiEnhancementApplied = true,
+      )
   }
 
   fun analyzeCapturedPhoto(photoId: Int, bitmap: Bitmap) {
@@ -377,6 +407,7 @@ private fun PullDownIslandCameraDemo(
           )
           updatePhotoAiState(photoId, aiState)
           if (aiState is PhotoAiState.Ready) {
+            applyPhotoAiEnhancement(photoId = photoId, insight = aiState.insight)
             maybeGeneratePhotoAwareFrame(photoId)
           }
         }
@@ -408,12 +439,19 @@ private fun PullDownIslandCameraDemo(
     requestSaveFramedPhotos(capturedPhotos.filter { it.id in selectedPhotoIds })
   }
 
-  fun handleCapturedPhoto(bitmap: Bitmap) {
-    val photoId = addCapturedPhoto(bitmap)
-    analyzeCapturedPhoto(photoId, bitmap)
+  fun deleteSelectedPhotos() {
+    if (selectedPhotoIds.isEmpty()) return
+    capturedPhotos = deleteCapturedPhotos(capturedPhotos, selectedPhotoIds)
+    clearPhotoSelection()
   }
 
-  fun playCapturePrintEffect(bitmap: Bitmap, feedbackMode: CaptureFeedbackMode) {
+  fun handleCapturedPhoto(bitmap: Bitmap): CapturedPhoto {
+    val photo = addCapturedPhoto(bitmap)
+    analyzeCapturedPhoto(photo.id, bitmap)
+    return photo
+  }
+
+  fun playCapturePrintEffect(photo: CapturedPhoto, feedbackMode: CaptureFeedbackMode) {
     scope.launch {
       captureFlashAlpha.stop()
       captureFlashAlpha.snapTo(0.42f)
@@ -421,16 +459,36 @@ private fun PullDownIslandCameraDemo(
 
       thumbnailFlightProgress.stop()
       captureFeedbackMode = feedbackMode
-      flyingThumbnail = bitmap
+      flyingThumbnail = photo
       thumbnailFlightProgress.snapTo(0f)
       thumbnailFlightProgress.animateTo(
         targetValue = 1f,
-        animationSpec = tween(durationMillis = 560, easing = FastOutSlowInEasing),
+        animationSpec =
+          tween(
+            durationMillis = if (feedbackMode == CaptureFeedbackMode.StageCamera) StageCapturePrintDurationMillis else 560,
+            easing = if (feedbackMode == CaptureFeedbackMode.StageCamera) LinearEasing else FastOutSlowInEasing,
+          ),
       )
       delay(80L)
-      if (flyingThumbnail == bitmap) {
+      if (flyingThumbnail?.id == photo.id) {
         flyingThumbnail = null
       }
+    }
+  }
+
+  fun playStageCaptureCurtain() {
+    scope.launch {
+      stageCaptureCurtainProgress.stop()
+      stageCaptureCurtainProgress.snapTo(0f)
+      stageCaptureCurtainProgress.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+      )
+      delay(110L)
+      stageCaptureCurtainProgress.animateTo(
+        targetValue = 0f,
+        animationSpec = tween(durationMillis = 340, easing = FastOutSlowInEasing),
+      )
     }
   }
 
@@ -441,6 +499,24 @@ private fun PullDownIslandCameraDemo(
         targetValue = 0f,
         animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.9f),
       )
+    }
+  }
+
+  fun finishCapturedBitmap(
+    bitmap: Bitmap,
+    feedbackMode: CaptureFeedbackMode,
+    collapseAfterCapture: Boolean,
+  ) {
+    scope.launch {
+      val enhancedBitmap = withContext(Dispatchers.Default) { enhanceBitmap(bitmap, cameraSceneTuning.enhancementProfile) }
+      isCaptureInProgress = false
+      val photo = handleCapturedPhoto(enhancedBitmap)
+      playCapturePrintEffect(photo = photo, feedbackMode = feedbackMode)
+      if (collapseAfterCapture) {
+        collapseCameraIsland()
+      } else {
+        captureLockedForFullPull = false
+      }
     }
   }
 
@@ -480,6 +556,7 @@ private fun PullDownIslandCameraDemo(
 
   fun openSettings() {
     clearPhotoSelection()
+    isStageAlbumOpen = false
     countdownValue = 0
     captureLockedForFullPull = true
     overlayRoute = CameraOverlayRoute.Settings
@@ -487,6 +564,7 @@ private fun PullDownIslandCameraDemo(
 
   fun openFrameManager() {
     clearPhotoSelection()
+    isStageAlbumOpen = false
     countdownValue = 0
     captureLockedForFullPull = true
     overlayRoute = CameraOverlayRoute.FrameManager
@@ -499,22 +577,20 @@ private fun PullDownIslandCameraDemo(
     countdownValue = 0
     captureLockedForFullPull = true
     isCaptureInProgress = true
+    if (!collapseAfterCapture) {
+      isStageAlbumOpen = false
+      playStageCaptureCurtain()
+    }
     shutterSoundPlayer.play(cameraPreferences)
     capturePhoto(
       imageCapture = capture,
       executor = ContextCompat.getMainExecutor(context),
       onCaptured = { bitmap ->
-        isCaptureInProgress = false
-        handleCapturedPhoto(bitmap)
-        playCapturePrintEffect(
+        finishCapturedBitmap(
           bitmap = bitmap,
           feedbackMode = if (collapseAfterCapture) CaptureFeedbackMode.PullList else CaptureFeedbackMode.StageCamera,
+          collapseAfterCapture = collapseAfterCapture,
         )
-        if (collapseAfterCapture) {
-          collapseCameraIsland()
-        } else {
-          captureLockedForFullPull = false
-        }
       },
       onError = {
         isCaptureInProgress = false
@@ -534,6 +610,7 @@ private fun PullDownIslandCameraDemo(
       captureLockedForFullPull = true
     }
     if (displayStyleChanged) {
+      isStageAlbumOpen = false
       suppressCountdownAtExpanded = false
       scope.launch { expansion.snapTo(0f) }
     }
@@ -546,6 +623,20 @@ private fun PullDownIslandCameraDemo(
         CameraLens.Back -> CameraLens.Front
       }
     updateCameraPreferences(cameraPreferences.copy(cameraLens = nextLens))
+  }
+
+  fun toggleStageAlbum() {
+    if (!isStageCamera) return
+    clearPhotoSelection()
+    isStageAlbumOpen = !isStageAlbumOpen
+  }
+
+  fun flipCameraAndOpenStageAlbum() {
+    if (!isStageCamera) return
+    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+    clearPhotoSelection()
+    toggleCameraLens()
+    isStageAlbumOpen = true
   }
 
   LaunchedEffect(isStageCamera, progress, hasCameraPermission, permissionRequested) {
@@ -616,10 +707,11 @@ private fun PullDownIslandCameraDemo(
         imageCapture = capture,
         executor = ContextCompat.getMainExecutor(context),
         onCaptured = { bitmap ->
-          isCaptureInProgress = false
-          handleCapturedPhoto(bitmap)
-          playCapturePrintEffect(bitmap = bitmap, feedbackMode = CaptureFeedbackMode.PullList)
-          collapseCameraIsland()
+          finishCapturedBitmap(
+            bitmap = bitmap,
+            feedbackMode = CaptureFeedbackMode.PullList,
+            collapseAfterCapture = true,
+          )
         },
         onError = {
           isCaptureInProgress = false
@@ -703,6 +795,7 @@ private fun PullDownIslandCameraDemo(
   val activeScreenDragModifier = if (dragDisabled) Modifier else dragModifier
   val backHandlerEnabled =
     isPhotoSelectionMode ||
+      isStageAlbumOpen ||
       isFrameSettingsOpen ||
       isSettingsOpen ||
       isFrameManagerOpen ||
@@ -713,6 +806,7 @@ private fun PullDownIslandCameraDemo(
     when {
       isCaptureInProgress -> Unit
       isPhotoSelectionMode -> clearPhotoSelection()
+      isStageAlbumOpen -> isStageAlbumOpen = false
       isFrameSettingsOpen -> closeFrameSettings()
       isSettingsOpen -> closeSettings()
       isFrameManagerOpen -> closeFrameManager()
@@ -744,7 +838,13 @@ private fun PullDownIslandCameraDemo(
         .semantics { testTagsAsResourceId = true }
         .testTag("pull-island-camera-demo"),
   ) {
-    val islandTop = 0.dp
+    val dynamicIslandMetrics =
+      rememberDynamicIslandMetrics(
+        maxWidth = maxWidth,
+        statusBarHeight = statusBarHeight,
+        coverMode = cameraPreferences.dynamicIslandCoverMode,
+      )
+    val islandTop = dynamicIslandMetrics.top
     val logoTop = lerpDp(84.dp, 224.dp, progress)
     val compactControlsTop = lerpDp(132.dp, 286.dp, progress)
     val fullScreenControlsTop = maxHeight - navigationBarHeight - 112.dp
@@ -752,22 +852,29 @@ private fun PullDownIslandCameraDemo(
     val pullPhotoWallTop = controlsTop + lerpDp(104.dp, 116.dp, progress)
     val stagePhotoWallTop =
       stageCameraPhotoWallTop(
-        statusBarHeight = statusBarHeight,
+        dynamicIslandMetrics = dynamicIslandMetrics,
         navigationBarHeight = navigationBarHeight,
         maxHeight = maxHeight,
         maxWidth = maxWidth,
       )
-    val photoWallTop = if (isStageCamera) stagePhotoWallTop else pullPhotoWallTop
+    val stageAlbumTop = stageCameraAlbumTop(dynamicIslandMetrics = dynamicIslandMetrics, maxHeight = maxHeight)
+    val stageAlbumSurfaceVisible = isStageCamera && (isStageAlbumOpen || stageAlbumFlipProgress > 0.01f)
+    val photoWallTop =
+      when {
+        stageAlbumSurfaceVisible -> stageAlbumTop
+        isStageCamera -> stagePhotoWallTop
+        else -> pullPhotoWallTop
+      }
     val availablePhotoWallHeight =
       maxHeight -
         photoWallTop -
         if (isStageCamera) {
-          navigationBarHeight + 14.dp
+          navigationBarHeight + if (stageAlbumSurfaceVisible) 112.dp else 14.dp
         } else {
           24.dp
         }
-    val minPhotoWallHeight = if (isStageCamera) 150.dp else 220.dp
-    val maxPhotoWallHeight = if (isStageCamera) 330.dp else 430.dp
+    val minPhotoWallHeight = if (stageAlbumSurfaceVisible) 360.dp else if (isStageCamera) 150.dp else 220.dp
+    val maxPhotoWallHeight = if (stageAlbumSurfaceVisible) 720.dp else if (isStageCamera) 330.dp else 430.dp
     val photoWallHeight =
       when {
         availablePhotoWallHeight < minPhotoWallHeight -> minPhotoWallHeight
@@ -776,33 +883,38 @@ private fun PullDownIslandCameraDemo(
       }
     val captureFeedbackStartTop =
       if (captureFeedbackMode == CaptureFeedbackMode.StageCamera) {
-        stageCameraPreviewTop(statusBarHeight = statusBarHeight, maxHeight = maxHeight) + 26.dp
+        dynamicIslandMetrics.bottom - 4.dp
       } else {
         islandTop + 16.dp
       }
     val captureFeedbackStartSize =
       if (captureFeedbackMode == CaptureFeedbackMode.StageCamera) {
-        96.dp
+        88.dp
       } else {
         104.dp
       }
+    val stageAlbumButtonTop = stageCameraAlbumButtonTop(maxHeight = maxHeight, navigationBarHeight = navigationBarHeight)
     val selectedPhotos = capturedPhotos.filter { it.id in selectedPhotoIds }
     val selectedFrameStyle = selectedPhotos.map { it.frameStyle }.distinct().singleOrNull()
 
     if (isStageCamera) {
       StageCamera(
-        statusBarHeight = statusBarHeight,
         navigationBarHeight = navigationBarHeight,
         maxWidth = maxWidth,
         maxHeight = maxHeight,
+        dynamicIslandMetrics = dynamicIslandMetrics,
         hasCameraPermission = hasCameraPermission,
         cameraLens = cameraPreferences.cameraLens,
         copy = copy,
         onImageCaptureReady = { imageCapture = it },
-        onFrameSettingsClick = { openFrameSettings(photoId = null) },
-        onFrameManagerClick = { openFrameManager() },
+        albumOpen = isStageAlbumOpen,
+        albumFlipProgress = stageAlbumFlipProgress,
+        latestAlbumPhoto = capturedPhotos.firstOrNull(),
+        captureCurtainProgress = stageCaptureCurtainProgress.value,
+        onSceneTuningChanged = { cameraSceneTuning = it },
+        onAlbumClick = { toggleStageAlbum() },
+        onAlbumLongClick = { flipCameraAndOpenStageAlbum() },
         onSettingsClick = { openSettings() },
-        onLensToggleClick = { toggleCameraLens() },
         onShutterClick = { captureImmediately(collapseAfterCapture = false) },
       )
     } else {
@@ -850,25 +962,40 @@ private fun PullDownIslandCameraDemo(
       )
     }
 
-    PhotoWall(
-      photos = capturedPhotos,
-      gridHeight = photoWallHeight,
-      selectedPhotoIds = selectedPhotoIds,
-      selectionMode = isPhotoSelectionMode,
-      onPhotoClick = { photo ->
-        if (isPhotoSelectionMode) {
-          togglePhotoSelection(photo)
-        } else {
-          openFrameSettings(photoId = photo.id)
-        }
-      },
-      onPhotoLongClick = { photo -> enterPhotoSelection(photo) },
-      modifier =
-        Modifier
-          .align(Alignment.TopCenter)
-          .padding(top = photoWallTop)
-          .graphicsLayer { alpha = 1f - fullScreenProgress },
-    )
+    val photoWallPhotos = if (isStageCamera && !stageAlbumSurfaceVisible) emptyList() else capturedPhotos
+    if (!isStageCamera || stageAlbumSurfaceVisible) {
+      val stageGalleryFlipProgress = if (stageAlbumSurfaceVisible) stageAlbumBackCardProgress(stageAlbumFlipProgress) else 1f
+      PhotoWall(
+        photos = photoWallPhotos,
+        gridHeight = photoWallHeight,
+        columns = if (isStageCamera && stageAlbumSurfaceVisible) 2 else 3,
+        horizontalPadding = if (isStageCamera) 38.dp else 28.dp,
+        itemAspectRatio = if (isStageCamera && stageAlbumSurfaceVisible) 0.72f else 0.78f,
+        selectedPhotoIds = selectedPhotoIds,
+        selectionMode = isPhotoSelectionMode,
+        onPhotoClick = { photo ->
+          if (isPhotoSelectionMode) {
+            togglePhotoSelection(photo)
+          } else {
+            openFrameSettings(photoId = photo.id)
+          }
+        },
+        onPhotoLongClick = { photo -> enterPhotoSelection(photo) },
+        modifier =
+          Modifier
+            .align(Alignment.TopCenter)
+            .padding(top = photoWallTop)
+            .graphicsLayer {
+              alpha =
+                (1f - fullScreenProgress) *
+                if (isStageCamera && stageAlbumSurfaceVisible) stageAlbumBackCardAlpha(stageAlbumFlipProgress) else 1f
+              rotationY = if (isStageCamera && stageAlbumSurfaceVisible) lerpFloat(-88f, 0f, stageGalleryFlipProgress) else 0f
+              scaleX = if (isStageCamera && stageAlbumSurfaceVisible) lerpFloat(0.96f, 1f, stageGalleryFlipProgress) else 1f
+              scaleY = if (isStageCamera && stageAlbumSurfaceVisible) lerpFloat(0.98f, 1f, stageGalleryFlipProgress) else 1f
+              cameraDistance = 18f * density.density
+            },
+      )
+    }
 
     if (!isStageCamera) {
       PullIsland(
@@ -878,6 +1005,7 @@ private fun PullDownIslandCameraDemo(
         maxWidth = maxWidth,
         maxHeight = maxHeight,
         statusBarHeight = statusBarHeight,
+        dynamicIslandMetrics = dynamicIslandMetrics,
         hasCameraPermission = hasCameraPermission,
         countdownValue = countdownValue,
         fullScreenHint = copy.pullForFullScreenHint,
@@ -885,6 +1013,7 @@ private fun PullDownIslandCameraDemo(
         cameraLens = cameraPreferences.cameraLens,
         cameraDisplayStyle = CameraDisplayStyle.PullList,
         onImageCaptureReady = { imageCapture = it },
+        onSceneTuningChanged = { cameraSceneTuning = it },
         modifier =
           Modifier
             .align(Alignment.TopCenter)
@@ -932,7 +1061,7 @@ private fun PullDownIslandCameraDemo(
         modifier =
           Modifier
             .align(Alignment.TopCenter)
-            .padding(top = islandTop + 34.dp),
+            .padding(top = dynamicIslandMetrics.bottom + 10.dp),
       )
 
       HomeFrameStudioPanel(
@@ -957,9 +1086,12 @@ private fun PullDownIslandCameraDemo(
       thumbnail = flyingThumbnail,
       thumbnailProgress = thumbnailFlightProgress.value,
       flashAlpha = captureFlashAlpha.value,
+      feedbackMode = captureFeedbackMode,
       startTop = captureFeedbackStartTop,
       startSize = captureFeedbackStartSize,
       photoWallTop = photoWallTop,
+      targetLeft = if (captureFeedbackMode == CaptureFeedbackMode.StageCamera) StageCameraCornerButtonPadding + StageCameraAlbumThumbnailInset else 28.dp,
+      targetTop = if (captureFeedbackMode == CaptureFeedbackMode.StageCamera) stageAlbumButtonTop + StageCameraAlbumThumbnailInset else photoWallTop + 6.dp,
       maxWidth = maxWidth,
       maxHeight = maxHeight,
     )
@@ -971,6 +1103,7 @@ private fun PullDownIslandCameraDemo(
         copy = copy,
         onClearSelection = { clearPhotoSelection() },
         onSaveSelected = { saveSelectedPhotos() },
+        onDeleteSelected = { deleteSelectedPhotos() },
         onFrameSelected = { frameStyle -> applyFrameToSelectedPhotos(frameStyle) },
         modifier =
           Modifier
@@ -1051,14 +1184,13 @@ private fun cameraFullScreenProgress(progress: Float): Float =
 
 private fun smoothStep(progress: Float): Float = progress * progress * (3f - 2f * progress)
 
+private fun stageAlbumBackCardProgress(progress: Float): Float = smoothStep(((progress - 0.42f) / 0.58f).coerceIn(0f, 1f))
+
+private fun stageAlbumBackCardAlpha(progress: Float): Float = ((progress - 0.38f) / 0.22f).coerceIn(0f, 1f)
+
 private fun lerpDp(start: Dp, end: Dp, progress: Float): Dp = start + (end - start) * progress
 
 private fun lerpFloat(start: Float, end: Float, progress: Float): Float = start + (end - start) * progress
-
-private enum class CaptureFeedbackMode {
-  PullList,
-  StageCamera,
-}
 
 @ComposePreview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable

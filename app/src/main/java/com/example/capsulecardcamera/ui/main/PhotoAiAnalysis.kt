@@ -292,7 +292,7 @@ private const val PhotoInsightPrompt =
   """
 Return only compact JSON for this photo:
 {"title":"...","tags":["..."],"subject":"...","scene":"...","colors":["..."],"confidence":"low|medium|high","frameStyle":"stamp|polaroid|film|color","frameReason":"..."}
-Use at most 6 short English tags and 4 colors. Pick one frameStyle. Do not name people or private attributes. No Markdown.
+Prioritize the centered subject in the middle 40% of the image. Treat edges as scene context only. Use at most 6 short English tags and 4 colors. Pick one frameStyle. Do not name people or private attributes. No Markdown.
   """
 
 private fun String.logPreview(maxLength: Int = 160): String =

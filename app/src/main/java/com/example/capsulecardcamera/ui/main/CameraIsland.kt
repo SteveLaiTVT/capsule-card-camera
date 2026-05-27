@@ -15,9 +15,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -68,6 +66,7 @@ import kotlinx.coroutines.delay
 private val CameraIslandBlack = Color(0xFF060606)
 private val CameraStageBackground = Color(0xFFECE5F1)
 private const val CameraIslandFaceFocusMinIntervalMillis = 1200L
+private const val CameraIslandCenterTuningMinIntervalMillis = 800L
 
 @Composable
 internal fun PullIsland(
@@ -77,6 +76,7 @@ internal fun PullIsland(
   maxWidth: Dp,
   maxHeight: Dp,
   statusBarHeight: Dp,
+  dynamicIslandMetrics: DynamicIslandMetrics,
   hasCameraPermission: Boolean,
   countdownValue: Int,
   fullScreenHint: String,
@@ -84,13 +84,20 @@ internal fun PullIsland(
   cameraLens: CameraLens,
   cameraDisplayStyle: CameraDisplayStyle,
   onImageCaptureReady: (ImageCapture?) -> Unit,
+  onSceneTuningChanged: (CameraSceneTuning) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
-  val compactWidth = cameraIslandLerpDp(112.dp, 168.dp, progress)
-  val frontCameraTopPadding = rememberFrontCameraTopPadding()
+  val compactAnchorWidth =
+    if (dynamicIslandMetrics.width > 168.dp) {
+      dynamicIslandMetrics.width
+    } else {
+      168.dp
+    }
+  val compactWidth = cameraIslandLerpDp(dynamicIslandMetrics.width, compactAnchorWidth, progress)
+  val frontCameraBottomPadding = dynamicIslandMetrics.bottom + 6.dp
   val expandedTopPadding =
-    if (frontCameraTopPadding > statusBarHeight) {
-      frontCameraTopPadding
+    if (frontCameraBottomPadding > statusBarHeight) {
+      frontCameraBottomPadding
     } else {
       statusBarHeight
     }
@@ -107,16 +114,33 @@ internal fun PullIsland(
       430.dp
     }
   val expandedHeight = cameraIslandLerpDp(expandedTopPadding + 172.dp, stageHeight, stageProgress)
-  val compactHeight = cameraIslandLerpDp(32.dp, expandedHeight, progress)
+  val compactHeight = cameraIslandLerpDp(dynamicIslandMetrics.height, expandedHeight, progress)
   val transitionWidth = cameraIslandLerpDp(compactWidth, maxWidth * 0.82f, overPullProgress)
   val transitionHeight = cameraIslandLerpDp(compactHeight, compactHeight + 92.dp, overPullProgress)
-  val transitionRadius = cameraIslandLerpDp(cameraIslandLerpDp(18.dp, 36.dp, progress), 30.dp, overPullProgress)
+  val transitionRadius = cameraIslandLerpDp(cameraIslandLerpDp(dynamicIslandMetrics.height / 2f, 36.dp, progress), 30.dp, overPullProgress)
   val stageWidth = cameraIslandLerpDp(transitionWidth, maxWidth, stageProgress)
   val width = cameraIslandLerpDp(stageWidth, maxWidth, fullScreenProgress)
   val height = cameraIslandLerpDp(transitionHeight, maxHeight, fullScreenProgress)
   val radius = cameraIslandLerpDp(transitionRadius, 0.dp, fullScreenProgress)
+  val topRadius =
+    cameraIslandLerpDp(
+      start =
+        if (dynamicIslandMetrics.top <= 0.dp) {
+          dynamicIslandMetrics.height * 0.34f
+        } else {
+          dynamicIslandMetrics.height / 2f
+        },
+      end = radius,
+      progress = (progress + overPullProgress + stageProgress + fullScreenProgress).coerceIn(0f, 1f),
+    )
+  val islandShape =
+    RoundedCornerShape(
+      topStart = topRadius,
+      topEnd = topRadius,
+      bottomStart = radius,
+      bottomEnd = radius,
+    )
   val previewAlpha = (progress / 0.42f).coerceIn(0f, 1f)
-  val closedAlpha = (1f - progress * 1.7f).coerceIn(0f, 1f)
   val innerPadding = cameraIslandLerpDp(cameraIslandLerpDp(0.dp, 12.dp, progress), 0.dp, fullScreenProgress)
   val compactTopPadding =
     cameraIslandLerpDp(
@@ -160,6 +184,8 @@ internal fun PullIsland(
     )
   val thresholdHighlightAlpha = overPullProgress * (1f - fullScreenProgress)
   val previewAssistAlpha = (fullScreenProgress + stageProgress * 0.55f).coerceIn(0f, 1f)
+  val borderAlpha = (previewAlpha * 0.1f + thresholdHighlightAlpha * 0.22f) * (1f - fullScreenProgress)
+  val shadowElevation = cameraIslandLerpDp(8.dp, 0.dp, fullScreenProgress)
 
   LaunchedEffect(hasCameraPermission, previewAlpha) {
     if (!hasCameraPermission || previewAlpha <= 0f) {
@@ -171,12 +197,13 @@ internal fun PullIsland(
     modifier =
       modifier
         .size(width = width, height = height)
-        .clip(RoundedCornerShape(radius))
+        .shadow(elevation = shadowElevation, shape = islandShape, clip = false)
+        .clip(islandShape)
         .background(lerpColor(CameraIslandBlack, CameraStageBackground, stageProgress))
         .border(
           1.dp,
-          Color.White.copy(alpha = (0.08f + previewAlpha * 0.08f + thresholdHighlightAlpha * 0.22f) * (1f - fullScreenProgress)),
-          RoundedCornerShape(radius),
+          Color.White.copy(alpha = borderAlpha),
+          islandShape,
         )
         .padding(
           PaddingValues(
@@ -186,7 +213,7 @@ internal fun PullIsland(
             bottom = innerPadding,
           ),
         )
-        .semantics { contentDescription = "Pull down camera island" }
+        .semantics { contentDescription = "Front camera dynamic island" }
         .testTag("dynamic-island"),
     contentAlignment = Alignment.Center,
   ) {
@@ -212,6 +239,7 @@ internal fun PullIsland(
           cameraLens = cameraLens,
           meteringOverlayAlpha = previewAssistAlpha,
           onImageCaptureReady = onImageCaptureReady,
+          onSceneTuningChanged = onSceneTuningChanged,
           modifier = Modifier.fillMaxSize(),
         )
         CameraPreviewFrame(
@@ -229,17 +257,6 @@ internal fun PullIsland(
       fullScreenHint = fullScreenHint,
       thresholdProgress = overPullProgress,
     )
-    ClosedIslandMarks(alpha = closedAlpha)
-  }
-}
-
-@Composable
-private fun rememberFrontCameraTopPadding(extraBelowCamera: Dp = 6.dp): Dp {
-  val cutoutHeight = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
-  return if (cutoutHeight > 0.dp) {
-    cutoutHeight + extraBelowCamera
-  } else {
-    12.dp
   }
 }
 
@@ -248,6 +265,7 @@ internal fun CameraSurfacePreview(
   cameraLens: CameraLens,
   meteringOverlayAlpha: Float,
   onImageCaptureReady: (ImageCapture?) -> Unit,
+  onSceneTuningChanged: (CameraSceneTuning) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -302,6 +320,7 @@ internal fun CameraSurfacePreview(
     onFaceFocusPoint = { offset ->
       focusCameraAt(previewView = previewView, camera = camera, offset = offset)
     },
+    onSceneTuningChanged = onSceneTuningChanged,
     contextExecutorProvider = { ContextCompat.getMainExecutor(context) },
   )
 }
@@ -367,6 +386,7 @@ private fun BindCameraPreview(
   onImageCaptureReady: (ImageCapture?) -> Unit,
   onCameraReady: (Camera?) -> Unit,
   onFaceFocusPoint: (Offset) -> Unit,
+  onSceneTuningChanged: (CameraSceneTuning) -> Unit,
   contextExecutorProvider: () -> java.util.concurrent.Executor,
 ) {
   val context = LocalContext.current
@@ -388,6 +408,8 @@ private fun BindCameraPreview(
           .build(),
       )
     var lastFaceFocusAt = 0L
+    var lastCenterTuningAt = 0L
+    var boundCamera: Camera? = null
     val listener =
       Runnable {
         runCatching {
@@ -406,6 +428,15 @@ private fun BindCameraPreview(
               .build()
               .apply {
                 setAnalyzer(analysisExecutor) { imageProxy ->
+                  val now = System.currentTimeMillis()
+                  if (now - lastCenterTuningAt >= CameraIslandCenterTuningMinIntervalMillis) {
+                    lastCenterTuningAt = now
+                    tuneCameraForCenterFrame(
+                      imageProxy = imageProxy,
+                      camera = boundCamera,
+                      onSceneTuningChanged = onSceneTuningChanged,
+                    )
+                  }
                   analyzeFacesForFocus(
                     imageProxy = imageProxy,
                     previewView = previewView,
@@ -424,9 +455,12 @@ private fun BindCameraPreview(
 
           cameraProvider.unbindAll()
           val camera = cameraProvider.bindToLifecycle(lifecycleOwner, cameraLens.cameraSelector(), preview, imageCapture, imageAnalysis)
+          boundCamera = camera
           onCameraReady(camera)
+          focusCameraAtCenter(previewView = previewView, camera = camera)
           onImageCaptureReady(imageCapture)
         }.onFailure {
+          boundCamera = null
           onCameraReady(null)
           onImageCaptureReady(null)
         }
@@ -440,6 +474,7 @@ private fun BindCameraPreview(
           cameraProviderFuture.get().unbindAll()
         }
       }
+      boundCamera = null
       onCameraReady(null)
       onImageCaptureReady(null)
       faceDetector.close()
@@ -456,10 +491,49 @@ private fun focusCameraAt(
   val meteringPoint = previewView?.meteringPointFactory?.createPoint(offset.x, offset.y) ?: return
   val action =
     FocusMeteringAction
-      .Builder(meteringPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+      .Builder(meteringPoint, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB)
       .setAutoCancelDuration(3, TimeUnit.SECONDS)
       .build()
   camera?.cameraControl?.startFocusAndMetering(action)
+}
+
+private fun focusCameraAtCenter(
+  previewView: PreviewView,
+  camera: Camera,
+) {
+  previewView.post {
+    if (previewView.width > 0 && previewView.height > 0) {
+      focusCameraAt(
+        previewView = previewView,
+        camera = camera,
+        offset = Offset(previewView.width * 0.5f, previewView.height * 0.5f),
+      )
+    }
+  }
+}
+
+private fun tuneCameraForCenterFrame(
+  imageProxy: ImageProxy,
+  camera: Camera?,
+  onSceneTuningChanged: (CameraSceneTuning) -> Unit,
+) {
+  val stats = analyzeCenterFrame(imageProxy) ?: return
+  val exposureState = camera?.cameraInfo?.exposureState
+  val range = exposureState?.exposureCompensationRange
+  val targetExposure =
+    if (exposureState != null && exposureState.isExposureCompensationSupported && range != null) {
+      recommendedExposureCompensationIndex(
+        centerLuma = stats.luma,
+        minIndex = range.lower,
+        maxIndex = range.upper,
+      )
+    } else {
+      0
+    }
+  if (exposureState != null && exposureState.isExposureCompensationSupported && targetExposure != exposureState.exposureCompensationIndex) {
+    camera.cameraControl.setExposureCompensationIndex(targetExposure)
+  }
+  onSceneTuningChanged(cameraSceneTuningFromStats(stats = stats, exposureCompensationIndex = targetExposure))
 }
 
 private fun analyzeFacesForFocus(
@@ -547,26 +621,6 @@ private fun CameraPreviewFrame(
       color = Color.White.copy(alpha = 0.75f),
       radius = 1.6.dp.toPx(),
       center = Offset(size.width * 0.5f, 6.dp.toPx()),
-    )
-  }
-}
-
-@Composable
-private fun ClosedIslandMarks(alpha: Float) {
-  Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha }) {
-    drawRoundRect(
-      brush =
-        Brush.verticalGradient(
-          listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.02f)),
-        ),
-      topLeft = Offset(size.width * 0.19f, 6.dp.toPx()),
-      size = Size(size.width * 0.62f, 4.dp.toPx()),
-      cornerRadius = CornerRadius(3.dp.toPx()),
-    )
-    drawCircle(
-      color = Color.White.copy(alpha = 0.55f),
-      radius = 1.7.dp.toPx(),
-      center = Offset(size.width * 0.5f, size.height * 0.52f),
     )
   }
 }
