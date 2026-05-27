@@ -19,7 +19,7 @@ These commands are examples for later validation. Do not run device flows unless
 
 ```sh
 MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"
-"$MAESTRO_BIN" check-syntax .maestro/flows/*.yaml
+for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow" || exit 1; done
 "$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 

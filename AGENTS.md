@@ -20,9 +20,12 @@ For code changes, prefer the narrowest meaningful Gradle check first. Useful pro
 
 ```sh
 ./gradlew :app:testDebugUnitTest
-./gradlew :app:connectedDebugAndroidTest
+MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"; for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow" || exit 1; done
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+"$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 
-Run connected tests only when an emulator or device is available and the change affects rendered UI, CameraX, permissions, or interactions.
+Prefer Maestro smoke flows for rendered UI and interaction validation. Run `./gradlew :app:connectedDebugAndroidTest` only when broader Compose instrumentation coverage is explicitly needed.
 
 For Maestro skill/flow-only changes, do not execute device flows unless explicitly requested. Prefer syntax-only checks first.

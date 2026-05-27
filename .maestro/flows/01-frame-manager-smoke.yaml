@@ -2,6 +2,7 @@ appId: com.example.capsulecardcamera
 ---
 # Smoke the settings-to-frame-manager path without touching AI generation or camera capture.
 - stopApp: com.example.capsulecardcamera
+- clearState: com.example.capsulecardcamera
 - openLink: "piccam://maestro"
 - assertVisible:
     id: "pull-island-camera-demo"

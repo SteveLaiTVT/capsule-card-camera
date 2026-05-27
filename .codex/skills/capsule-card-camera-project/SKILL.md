@@ -32,7 +32,7 @@ Use the more focused local skills when the task is specifically about CameraX or
 
 - Documentation or skill-only changes: run `git diff --check`.
 - Pure ViewModel/state logic: run `./gradlew :app:testDebugUnitTest`.
-- UI semantics, CameraX, permissions, or pull interaction changes: run `./gradlew :app:connectedDebugAndroidTest` when a device or emulator is available.
+- UI semantics, CameraX, permissions, or pull interaction changes: run the relevant Maestro smoke flow when a device or emulator is available. Use `./gradlew :app:connectedDebugAndroidTest` only when broader Compose instrumentation coverage is explicitly needed.
 
 ## Source Discipline
 

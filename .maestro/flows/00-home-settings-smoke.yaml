@@ -2,6 +2,7 @@ appId: com.example.capsulecardcamera
 ---
 # Launch through the debug-only deep link; direct launch was brittle on this camera-heavy screen.
 - stopApp: com.example.capsulecardcamera
+- clearState: com.example.capsulecardcamera
 - openLink: "piccam://maestro"
 - assertVisible:
     id: "pull-island-camera-demo"
@@ -14,5 +15,12 @@ appId: com.example.capsulecardcamera
     waitToSettleTimeoutMs: 800
 - assertVisible:
     id: "camera-settings-screen"
+- scrollUntilVisible:
+    element:
+      id: "sound-effects-setting"
+    direction: DOWN
+    timeout: 8000
+    speed: 40
+    visibilityPercentage: 70
 - assertVisible:
     id: "sound-effects-setting"
