@@ -49,7 +49,8 @@ android {
 
   buildTypes {
     release {
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       if (hasReleaseSigning) {
         signingConfig = signingConfigs.getByName("release")
       }
@@ -68,6 +69,9 @@ android {
   }
 
   packaging {
+    jniLibs {
+      useLegacyPackaging = true
+    }
     resources {
       excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }

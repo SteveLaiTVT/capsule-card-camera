@@ -362,20 +362,54 @@ private fun CameraMeteringOverlay(
     drawLine(ringColor, Offset(point.x, point.y + ringRadius - 10.dp.toPx()), Offset(point.x, point.y + ringRadius), 2.dp.toPx())
 
     val exposureX = (point.x + ringRadius + 14.dp.toPx()).coerceAtMost(size.width - 18.dp.toPx())
-    val exposureTop = (point.y - 42.dp.toPx()).coerceIn(12.dp.toPx(), size.height - 96.dp.toPx())
+    val exposureTrack =
+      exposureMeterTrack(
+        preferredCenterY = point.y,
+        canvasHeight = size.height,
+        verticalPadding = 12.dp.toPx(),
+        preferredHeight = 84.dp.toPx(),
+      ) ?: return@Canvas
     drawLine(
       color = Color.White.copy(alpha = 0.78f),
-      start = Offset(exposureX, exposureTop),
-      end = Offset(exposureX, exposureTop + 84.dp.toPx()),
+      start = Offset(exposureX, exposureTrack.top),
+      end = Offset(exposureX, exposureTrack.top + exposureTrack.height),
       strokeWidth = 1.3.dp.toPx(),
       cap = StrokeCap.Round,
     )
     drawCircle(
       color = FrameWarmWhite.copy(alpha = 0.92f),
       radius = 5.dp.toPx(),
-      center = Offset(exposureX, exposureTop + 42.dp.toPx()),
+      center = Offset(exposureX, exposureTrack.top + exposureTrack.height / 2f),
     )
   }
+}
+
+internal data class ExposureMeterTrack(
+  val top: Float,
+  val height: Float,
+)
+
+internal fun exposureMeterTrack(
+  preferredCenterY: Float,
+  canvasHeight: Float,
+  verticalPadding: Float,
+  preferredHeight: Float,
+): ExposureMeterTrack? {
+  if (canvasHeight <= 0f || preferredHeight <= 0f) return null
+  val safePadding = verticalPadding.coerceAtLeast(0f)
+  val availableHeight = (canvasHeight - safePadding * 2f).coerceAtLeast(0f)
+  if (availableHeight <= 0f) return null
+  val trackHeight = preferredHeight.coerceAtMost(availableHeight)
+  val minTop = safePadding
+  val maxTop = canvasHeight - safePadding - trackHeight
+  val preferredTop = preferredCenterY - trackHeight / 2f
+  val top =
+    if (maxTop >= minTop) {
+      preferredTop.coerceIn(minTop, maxTop)
+    } else {
+      (canvasHeight - trackHeight) / 2f
+    }
+  return ExposureMeterTrack(top = top, height = trackHeight)
 }
 
 @Composable
