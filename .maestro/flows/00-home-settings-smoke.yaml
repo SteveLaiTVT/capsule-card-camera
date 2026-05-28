@@ -1,8 +1,8 @@
-appId: com.example.capsulecardcamera
+appId: io.github.stevelaitvt.capsulecardcamera
 ---
 # Launch through the debug-only deep link; direct launch was brittle on this camera-heavy screen.
-- stopApp: com.example.capsulecardcamera
-- clearState: com.example.capsulecardcamera
+- stopApp: io.github.stevelaitvt.capsulecardcamera
+- clearState: io.github.stevelaitvt.capsulecardcamera
 - openLink: "piccam://maestro"
 - assertVisible:
     id: "pull-island-camera-demo"

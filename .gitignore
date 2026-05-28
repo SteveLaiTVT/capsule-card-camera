@@ -13,6 +13,8 @@ local.properties
 
 .env
 .env.*
+keystores/
+release-signing.properties
 *.jks
 *.keystore
 *.p12

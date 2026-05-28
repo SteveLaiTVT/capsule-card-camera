@@ -1,23 +1,58 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
 }
 
+val localProperties = Properties().apply {
+  val propertiesFile = rootProject.file("local.properties")
+  if (propertiesFile.isFile) {
+    propertiesFile.inputStream().use(::load)
+  }
+}
+
+fun releaseSigningValue(name: String): String? =
+  providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+    ?: localProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = releaseSigningValue("CAPSULE_RELEASE_STORE_FILE")
+val releaseStorePassword = releaseSigningValue("CAPSULE_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = releaseSigningValue("CAPSULE_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseSigningValue("CAPSULE_RELEASE_KEY_PASSWORD")
+val hasReleaseSigning =
+  listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { !it.isNullOrBlank() }
+
 android {
   namespace = "com.example.capsulecardcamera"
   compileSdk = 36
   defaultConfig {
-    applicationId = "com.example.capsulecardcamera"
+    applicationId = "io.github.stevelaitvt.capsulecardcamera"
     minSdk = 23
     targetSdk = 36
     versionCode = 1
-    versionName = "1.0"
+    versionName = "1.0.0"
+  }
+
+  signingConfigs {
+    if (hasReleaseSigning) {
+      create("release") {
+        storeFile = file(releaseStoreFile!!)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
   }
 
   buildTypes {
     release {
       isMinifyEnabled = false
+      if (hasReleaseSigning) {
+        signingConfig = signingConfigs.getByName("release")
+      }
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
     }
   }

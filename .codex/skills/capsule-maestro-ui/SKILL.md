@@ -13,7 +13,7 @@ Do not use this skill for the unrelated `.agents/skills/maestro` governance plug
 
 ## Local Context
 
-- App id: `com.example.capsulecardcamera`.
+- App id: `io.github.stevelaitvt.capsulecardcamera`.
 - Debug build exposes `piccam://maestro` in `app/src/debug/AndroidManifest.xml`.
 - Starter Maestro flows live under `.maestro/flows/`.
 - The previously reliable local binary path was `/Users/stevelife/.maestro/bin/maestro`; allow `MAESTRO_BIN` to override it.
@@ -34,7 +34,7 @@ Use these only when the user asks to validate with Maestro:
 
 ```sh
 MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"
-"$MAESTRO_BIN" check-syntax .maestro/flows/*.yaml
+for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow"; done
 "$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 
