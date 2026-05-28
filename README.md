@@ -33,7 +33,7 @@ Maestro syntax and smoke checks:
 
 ```sh
 MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"
-for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow"; done
+for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow" || exit 1; done
 "$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 
@@ -111,7 +111,7 @@ Maestro 语法检查和冒烟测试：
 
 ```sh
 MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"
-for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow"; done
+for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow" || exit 1; done
 "$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 

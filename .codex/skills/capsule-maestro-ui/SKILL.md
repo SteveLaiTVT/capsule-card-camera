@@ -34,7 +34,7 @@ Use these only when the user asks to validate with Maestro:
 
 ```sh
 MAESTRO_BIN="${MAESTRO_BIN:-/Users/stevelife/.maestro/bin/maestro}"
-for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow"; done
+for flow in .maestro/flows/*.yaml; do "$MAESTRO_BIN" check-syntax "$flow" || exit 1; done
 "$MAESTRO_BIN" test .maestro/flows/00-home-settings-smoke.yaml
 ```
 
