@@ -127,7 +127,7 @@ internal fun cutoutDynamicIslandMetrics(
   val islandWidth =
     (cutoutWidth + profile.horizontalOverscan)
       .coerceIn(profile.minWidth, maxWidth * profile.maxWidthFraction)
-  val islandTop = (cutoutTop - profile.topOverscan).coerceAtLeast(0.dp)
+  val islandTop = (cutoutTop - profile.topOverscan).coerceAtLeast(profile.topClearance)
   val cutoutBottom = cutoutTop + cutoutHeight
   val requiredBottom =
     maxOf(
@@ -155,7 +155,7 @@ internal fun fallbackDynamicIslandMetrics(
   val profile = coverMode.coverProfile()
   val width = profile.minWidth.coerceAtMost(maxWidth * profile.maxWidthFraction)
   return DynamicIslandMetrics(
-    top = 0.dp,
+    top = profile.topClearance,
     left = (maxWidth - width) / 2f,
     width = width,
     height = profile.minHeight,
@@ -168,6 +168,7 @@ private data class DynamicIslandCoverProfile(
   val minHeight: Dp,
   val maxHeight: Dp,
   val horizontalOverscan: Dp,
+  val topClearance: Dp,
   val topOverscan: Dp,
   val bottomOverscan: Dp,
   val safeInsetBottomOverscan: Dp,
@@ -183,6 +184,7 @@ private fun DynamicIslandCoverMode.coverProfile(): DynamicIslandCoverProfile =
         minHeight = 44.dp,
         maxHeight = 56.dp,
         horizontalOverscan = 86.dp,
+        topClearance = 6.dp,
         topOverscan = 0.dp,
         bottomOverscan = 10.dp,
         safeInsetBottomOverscan = 4.dp,
@@ -195,6 +197,7 @@ private fun DynamicIslandCoverMode.coverProfile(): DynamicIslandCoverProfile =
         minHeight = 46.dp,
         maxHeight = 58.dp,
         horizontalOverscan = 134.dp,
+        topClearance = 8.dp,
         topOverscan = 4.dp,
         bottomOverscan = 16.dp,
         safeInsetBottomOverscan = 8.dp,
@@ -207,6 +210,7 @@ private fun DynamicIslandCoverMode.coverProfile(): DynamicIslandCoverProfile =
         minHeight = 60.dp,
         maxHeight = 74.dp,
         horizontalOverscan = 172.dp,
+        topClearance = 10.dp,
         topOverscan = 10.dp,
         bottomOverscan = 26.dp,
         safeInsetBottomOverscan = 14.dp,

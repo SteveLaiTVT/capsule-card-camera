@@ -17,6 +17,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -25,9 +26,13 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBars
@@ -45,6 +50,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -134,6 +141,7 @@ private fun PullDownIslandCameraDemo(
   val stageCaptureCurtainProgress = remember { Animatable(0f) }
   var cameraSceneTuning by remember { mutableStateOf(CameraSceneTuning.Neutral) }
   var flyingThumbnail by remember { mutableStateOf<CapturedPhoto?>(null) }
+  var stageAlbumPrintPhotoId by remember { mutableStateOf<Int?>(null) }
   var captureFeedbackMode by remember { mutableStateOf(CaptureFeedbackMode.PullList) }
   var nextPhotoId by remember { mutableIntStateOf(0) }
   var capturedPhotos by remember { mutableStateOf<List<CapturedPhoto>>(emptyList()) }
@@ -157,6 +165,8 @@ private fun PullDownIslandCameraDemo(
   var draftFrameStyle by remember { mutableStateOf(defaultFrameStyle) }
   var frameManagerGenerationState by remember { mutableStateOf<FrameGenerationState>(FrameGenerationState.Idle) }
   var frameManagerConversation by remember { mutableStateOf<List<FrameConversationMessage>>(emptyList()) }
+  var aiCapabilityNoticeAcknowledged by remember { mutableStateOf(isAiCapabilityNoticeAcknowledged(context)) }
+  var aiCapabilityNoticeVisible by remember { mutableStateOf(false) }
   var pendingSaveRequests by remember { mutableStateOf<List<FrameSaveRequest>>(emptyList()) }
   var hasCameraPermission by remember {
     mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
@@ -265,7 +275,22 @@ private fun PullDownIslandCameraDemo(
     frameManagerGenerationState = FrameGenerationState.Ready(frameSpec)
   }
 
+  fun showAiCapabilityNoticeIfNeeded() {
+    if (!aiCapabilityNoticeAcknowledged) {
+      aiCapabilityNoticeVisible = true
+    }
+  }
+
+  fun dismissAiCapabilityNotice() {
+    aiCapabilityNoticeVisible = false
+    aiCapabilityNoticeAcknowledged = true
+    acknowledgeAiCapabilityNotice(context)
+  }
+
   fun updatePhotoAiState(photoId: Int, aiState: PhotoAiState) {
+    if (aiState == PhotoAiState.Unavailable) {
+      showAiCapabilityNoticeIfNeeded()
+    }
     capturedPhotos = updateCapturedPhotoAiState(capturedPhotos, photoId, aiState)
   }
 
@@ -274,6 +299,9 @@ private fun PullDownIslandCameraDemo(
   }
 
   fun updatePhotoFrameGenerationState(photoId: Int, frameGenerationState: FrameGenerationState) {
+    if (frameGenerationState == FrameGenerationState.Unavailable) {
+      showAiCapabilityNoticeIfNeeded()
+    }
     capturedPhotos = updateCapturedPhotoFrameGenerationState(capturedPhotos, photoId, frameGenerationState)
     if (frameGenerationState is FrameGenerationState.Ready) {
       customFrameSpecs = addGeneratedFrameSpecToLibrary(customFrameSpecs, frameGenerationState.spec)
@@ -348,7 +376,12 @@ private fun PullDownIslandCameraDemo(
                     text = frameSpec.reason.ifBlank { frameSpec.title },
                   )
             }
-            else -> frameManagerGenerationState = generationState
+            else -> {
+              if (generationState == FrameGenerationState.Unavailable) {
+                showAiCapabilityNoticeIfNeeded()
+              }
+              frameManagerGenerationState = generationState
+            }
           }
         }
     }
@@ -454,8 +487,13 @@ private fun PullDownIslandCameraDemo(
   fun playCapturePrintEffect(photo: CapturedPhoto, feedbackMode: CaptureFeedbackMode) {
     scope.launch {
       captureFlashAlpha.stop()
-      captureFlashAlpha.snapTo(0.42f)
-      launch { captureFlashAlpha.animateTo(0f, animationSpec = tween(durationMillis = 380)) }
+      if (feedbackMode == CaptureFeedbackMode.PullList) {
+        captureFlashAlpha.snapTo(0.42f)
+        launch { captureFlashAlpha.animateTo(0f, animationSpec = tween(durationMillis = 380)) }
+      } else {
+        captureFlashAlpha.snapTo(0f)
+        stageAlbumPrintPhotoId = photo.id
+      }
 
       thumbnailFlightProgress.stop()
       captureFeedbackMode = feedbackMode
@@ -472,6 +510,9 @@ private fun PullDownIslandCameraDemo(
       delay(80L)
       if (flyingThumbnail?.id == photo.id) {
         flyingThumbnail = null
+      }
+      if (stageAlbumPrintPhotoId == photo.id) {
+        stageAlbumPrintPhotoId = null
       }
     }
   }
@@ -794,6 +835,7 @@ private fun PullDownIslandCameraDemo(
   val activeDragModifier = if (dragDisabled) Modifier else dragModifier
   val activeScreenDragModifier = if (dragDisabled) Modifier else dragModifier
   val backHandlerEnabled =
+    aiCapabilityNoticeVisible ||
     isPhotoSelectionMode ||
       isStageAlbumOpen ||
       isFrameSettingsOpen ||
@@ -804,6 +846,7 @@ private fun PullDownIslandCameraDemo(
 
   BackHandler(enabled = backHandlerEnabled) {
     when {
+      aiCapabilityNoticeVisible -> dismissAiCapabilityNotice()
       isCaptureInProgress -> Unit
       isPhotoSelectionMode -> clearPhotoSelection()
       isStageAlbumOpen -> isStageAlbumOpen = false
@@ -909,7 +952,7 @@ private fun PullDownIslandCameraDemo(
         onImageCaptureReady = { imageCapture = it },
         albumOpen = isStageAlbumOpen,
         albumFlipProgress = stageAlbumFlipProgress,
-        latestAlbumPhoto = capturedPhotos.firstOrNull(),
+        latestAlbumPhoto = capturedPhotos.firstOrNull { it.id != stageAlbumPrintPhotoId },
         captureCurtainProgress = stageCaptureCurtainProgress.value,
         onSceneTuningChanged = { cameraSceneTuning = it },
         onAlbumClick = { toggleStageAlbum() },
@@ -1172,6 +1215,76 @@ private fun PullDownIslandCameraDemo(
         onSetDefaultFrame = { frameSpec -> setDefaultGeneratedFrameSpec(frameSpec) },
         onClose = { closeFrameManager() },
       )
+    }
+
+    if (aiCapabilityNoticeVisible) {
+      AiCapabilityNoticeDialog(
+        copy = copy,
+        onContinue = { dismissAiCapabilityNotice() },
+        modifier = Modifier.matchParentSize(),
+      )
+    }
+  }
+}
+
+@Composable
+private fun AiCapabilityNoticeDialog(
+  copy: CameraCopy,
+  onContinue: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Box(
+    modifier =
+      modifier
+        .background(Color.Black.copy(alpha = 0.38f))
+        .clickable(onClick = {})
+        .testTag("ai-capability-notice"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      modifier =
+        Modifier
+          .padding(horizontal = 28.dp)
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(18.dp))
+          .background(FrameWarmWhite)
+          .border(1.dp, Color.Black.copy(alpha = 0.1f), RoundedCornerShape(18.dp))
+          .padding(18.dp),
+    ) {
+      Text(
+        text = copy.aiUnavailableNoticeTitle,
+        color = FrameBlack,
+        fontSize = 18.sp,
+        lineHeight = 22.sp,
+        fontWeight = FontWeight.Bold,
+      )
+      Text(
+        text = copy.aiUnavailableNoticeBody,
+        color = FrameBlack.copy(alpha = 0.74f),
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        modifier = Modifier.padding(top = 8.dp),
+      )
+      Spacer(modifier = Modifier.height(16.dp))
+      Box(
+        modifier =
+          Modifier
+            .align(Alignment.End)
+            .clip(RoundedCornerShape(14.dp))
+            .background(FrameBlack)
+            .clickable(onClick = onContinue)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .testTag("ai-capability-notice-continue"),
+        contentAlignment = Alignment.Center,
+      ) {
+        Text(
+          text = copy.aiUnavailableNoticeAction,
+          color = FrameWarmWhite,
+          fontSize = 13.sp,
+          lineHeight = 16.sp,
+          fontWeight = FontWeight.Bold,
+        )
+      }
     }
   }
 }

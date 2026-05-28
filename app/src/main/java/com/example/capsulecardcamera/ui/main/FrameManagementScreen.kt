@@ -56,6 +56,8 @@ internal fun FrameManagementScreen(
 ) {
   val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
   val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+  val topBarTop = topPadding + OverlayTopBarTopInset
+  val topBarHeight = 44.dp
   var promptText by remember(customFrameSpecs.size) { mutableStateOf("") }
   val previewFrameSpec =
     when (frameGenerationState) {
@@ -78,11 +80,9 @@ internal fun FrameManagementScreen(
         Modifier
           .fillMaxSize()
           .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, top = topPadding + 18.dp, end = 24.dp)
+          .padding(start = 24.dp, top = topBarTop + topBarHeight, end = 24.dp)
           .padding(bottom = bottomPadding + 28.dp),
     ) {
-      FrameSettingsTopBar(title = copy.myFramesTitle, onClose = onClose)
-
       FrameManagerHeroPreview(
         previewFrameSpec = previewFrameSpec,
         modifier =
@@ -124,6 +124,16 @@ internal fun FrameManagementScreen(
         )
       }
     }
+
+    FrameSettingsTopBar(
+      title = copy.myFramesTitle,
+      onClose = onClose,
+      modifier =
+        Modifier
+          .align(Alignment.TopCenter)
+          .padding(start = 24.dp, top = topBarTop, end = 24.dp)
+          .testTag("frame-manager-top-bar"),
+    )
   }
 }
 

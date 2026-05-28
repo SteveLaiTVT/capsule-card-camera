@@ -123,6 +123,8 @@ internal fun FrameSettingsScreen(
 ) {
   val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
   val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+  val topBarTop = topPadding + OverlayTopBarTopInset
+  val topBarHeight = 44.dp
   val activeGeneratedFrameSpec = selectedGeneratedFrameSpec?.takeIf { it.baseStyle == selectedFrameStyle }
 
   Box(
@@ -150,14 +152,9 @@ internal fun FrameSettingsScreen(
         Modifier
           .fillMaxSize()
           .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, top = topPadding + 18.dp, end = 24.dp)
+          .padding(start = 24.dp, top = topBarTop + topBarHeight, end = 24.dp)
           .padding(bottom = bottomPadding + 96.dp),
     ) {
-      FrameSettingsTopBar(
-        title = if (photo == null) copy.defaultFrameTitle else copy.photoFrameTitle,
-        onClose = onClose,
-      )
-
       Box(
         modifier =
           Modifier
@@ -252,6 +249,16 @@ internal fun FrameSettingsScreen(
           .align(Alignment.BottomCenter)
           .fillMaxWidth()
           .padding(start = 24.dp, end = 24.dp, bottom = bottomPadding + 18.dp),
+    )
+
+    FrameSettingsTopBar(
+      title = if (photo == null) copy.defaultFrameTitle else copy.photoFrameTitle,
+      onClose = onClose,
+      modifier =
+        Modifier
+          .align(Alignment.TopCenter)
+          .padding(start = 24.dp, top = topBarTop, end = 24.dp)
+          .testTag("frame-settings-top-bar"),
     )
   }
 }

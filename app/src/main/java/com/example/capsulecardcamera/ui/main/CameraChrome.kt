@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val CameraChromeBlack = Color(0xFF060606)
+internal val OverlayTopBarTopInset = 6.dp
 
 @Composable
 internal fun CameraControls(

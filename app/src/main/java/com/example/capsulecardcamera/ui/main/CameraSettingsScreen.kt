@@ -57,6 +57,8 @@ internal fun CameraSettingsScreen(
   val copy = preferences.copyText()
   val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
   val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+  val topBarTop = topPadding + OverlayTopBarTopInset
+  val topBarHeight = 44.dp
 
   Box(
     modifier =
@@ -84,10 +86,8 @@ internal fun CameraSettingsScreen(
         Modifier
           .fillMaxSize()
           .verticalScroll(rememberScrollState())
-          .padding(start = 24.dp, top = topPadding + 18.dp, end = 24.dp, bottom = bottomPadding + 18.dp),
+          .padding(start = 24.dp, top = topBarTop + topBarHeight, end = 24.dp, bottom = bottomPadding + 18.dp),
     ) {
-      SettingsTopBar(title = copy.settingsTitle, contentDescription = copy.closeSettingsContentDescription, onClose = onClose)
-
       SettingGroup(
         title = copy.languageLabel,
         modifier = Modifier.padding(top = 28.dp),
@@ -338,6 +338,17 @@ internal fun CameraSettingsScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
     }
+
+    SettingsTopBar(
+      title = copy.settingsTitle,
+      contentDescription = copy.closeSettingsContentDescription,
+      onClose = onClose,
+      modifier =
+        Modifier
+          .align(Alignment.TopCenter)
+          .padding(start = 24.dp, top = topBarTop, end = 24.dp)
+          .testTag("settings-top-bar"),
+    )
   }
 }
 

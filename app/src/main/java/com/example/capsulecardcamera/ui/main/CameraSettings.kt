@@ -13,6 +13,7 @@ private const val DynamicIslandCoverModeKey = "dynamic_island_cover_mode"
 private const val SoundEffectsEnabledKey = "sound_effects_enabled"
 private const val ShutterSoundStyleKey = "shutter_sound_style"
 private const val SoundEffectVolumeKey = "sound_effect_volume"
+private const val AiCapabilityNoticeAcknowledgedKey = "ai_capability_notice_acknowledged"
 
 internal data class CameraPreferences(
   val language: CameraLanguage = CameraLanguage.System,
@@ -126,6 +127,9 @@ internal data class CameraCopy(
   val aiAnalyzing: String,
   val aiUnavailable: String,
   val aiFailed: String,
+  val aiUnavailableNoticeTitle: String,
+  val aiUnavailableNoticeBody: String,
+  val aiUnavailableNoticeAction: String,
   val aiSubjectLabel: String,
   val aiSceneLabel: String,
   val aiColorsLabel: String,
@@ -208,6 +212,21 @@ internal fun saveCameraPreferences(
     .apply()
 }
 
+internal fun isAiCapabilityNoticeAcknowledged(context: Context): Boolean =
+  context
+    .applicationContext
+    .getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+    .getBoolean(AiCapabilityNoticeAcknowledgedKey, false)
+
+internal fun acknowledgeAiCapabilityNotice(context: Context) {
+  context
+    .applicationContext
+    .getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+    .edit()
+    .putBoolean(AiCapabilityNoticeAcknowledgedKey, true)
+    .apply()
+}
+
 internal fun CameraPreferences.copyText(): CameraCopy =
   when (language.resolve()) {
     ResolvedLanguage.ChineseSimplified ->
@@ -257,6 +276,9 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         aiAnalyzing = "正在分析照片",
         aiUnavailable = "当前设备暂不可用",
         aiFailed = "分析失败，可稍后重试",
+        aiUnavailableNoticeTitle = "没有找到端侧 AI",
+        aiUnavailableNoticeBody = "当前设备暂时无法启动 Gemini Nano，一些智能相框、照片理解和自动美化功能不可用。拍照、相册、普通相框和保存等核心功能持续可用。",
+        aiUnavailableNoticeAction = "继续使用",
         aiSubjectLabel = "主体",
         aiSceneLabel = "场景",
         aiColorsLabel = "颜色",
@@ -353,6 +375,9 @@ internal fun CameraPreferences.copyText(): CameraCopy =
         aiAnalyzing = "Analyzing photo",
         aiUnavailable = "Unavailable on this device",
         aiFailed = "Analysis failed. Try again later.",
+        aiUnavailableNoticeTitle = "On-device AI not found",
+        aiUnavailableNoticeBody = "This device cannot start Gemini Nano right now. Some smart frames, photo understanding, and auto enhancement features are unavailable. Capture, album, regular frames, and saving remain available.",
+        aiUnavailableNoticeAction = "Continue",
         aiSubjectLabel = "Subject",
         aiSceneLabel = "Scene",
         aiColorsLabel = "Colors",

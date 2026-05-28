@@ -1,6 +1,7 @@
 package com.example.capsulecardcamera.ui.main
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -15,6 +17,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -79,6 +83,20 @@ class MainScreenTest {
 
     composeTestRule.onNodeWithTag("frame-management-screen").assertExists()
     composeTestRule.onNodeWithTag("frame-manager-generate-button").assertExists()
+  }
+
+  @Test
+  fun mainScreen_showsAiCapabilityNoticeWhenFrameGenerationIsUnavailable() {
+    composeTestRule.setContent {
+      MainScreenWithDependencies(photoFrameGenerator = UnavailableFrameGenerator)
+    }
+
+    composeTestRule.onNodeWithTag("home-frame-manager-button").assertExists().performClick()
+    composeTestRule.onNodeWithTag("frame-manager-generate-button").assertExists().performClick()
+
+    composeTestRule.onNodeWithTag("ai-capability-notice").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("ai-capability-notice-continue").assertExists().performClick()
+    composeTestRule.onAllNodesWithTag("ai-capability-notice").assertCountEquals(0)
   }
 
   @Test
@@ -253,6 +271,58 @@ class MainScreenTest {
   }
 
   @Test
+  fun settingsScreen_keepsTopBarPinnedDuringScroll() {
+    composeTestRule.setContent {
+      var preferences by remember { mutableStateOf(CameraPreferences(language = CameraLanguage.English)) }
+      CameraSettingsScreen(
+        preferences = preferences,
+        onPreferencesChanged = { preferences = it },
+        onClose = {},
+      )
+    }
+
+    composeTestRule.onNodeWithTag("sound-effects-setting").performScrollTo()
+
+    composeTestRule.onNodeWithTag("settings-top-bar").assertIsDisplayed()
+  }
+
+  @Test
+  fun frameSettingsScreen_keepsTopBarPinnedDuringScroll() {
+    composeTestRule.setContent {
+      FrameSettingsScreen(
+        photo =
+          CapturedPhoto(
+            id = 1,
+            bitmap = BitmapTestFixtures.androidBitmap(),
+            frameStyle = PhotoFrameStyle.Stamp,
+            aiState =
+              PhotoAiState.Ready(
+                PhotoInsight(
+                  title = "Desk light",
+                  tags = listOf("desk", "lamp", "screen"),
+                  subject = "desk",
+                  scene = "workspace",
+                  colors = listOf("green", "black"),
+                  confidence = PhotoInsightConfidence.High,
+                  suggestedFrameStyle = PhotoFrameStyle.Film,
+                ),
+              ),
+          ),
+        selectedFrameStyle = PhotoFrameStyle.Stamp,
+        copy = CameraPreferences(language = CameraLanguage.English).copyText(),
+        onFrameSelected = {},
+        onGeneratedFrameSelected = {},
+        onClose = {},
+        onSave = {},
+      )
+    }
+
+    composeTestRule.onNodeWithTag("photo-ai-insight").performScrollTo()
+
+    composeTestRule.onNodeWithTag("frame-settings-top-bar").assertIsDisplayed()
+  }
+
+  @Test
   fun frameSettingsScreen_showsGeneratedFrameConversationControl() {
     composeTestRule.setContent {
       FrameSettingsScreen(
@@ -331,6 +401,19 @@ class MainScreenTest {
     composeTestRule.onNodeWithTag("frame-management-screen").assertExists()
     composeTestRule.onNodeWithTag("frame-manager-frame-option").performScrollTo().assertExists()
   }
+}
+
+private object UnavailableFrameGenerator : PhotoFrameGenerator {
+  override fun generateFrame(
+    bitmap: Bitmap?,
+    insight: PhotoInsight,
+    selectedTags: Set<String>,
+    currentFrameStyle: PhotoFrameStyle,
+    previousFrameSpec: GeneratedFrameSpec?,
+    conversation: List<FrameConversationMessage>,
+    instruction: String,
+    generationId: String,
+  ): Flow<FrameGenerationState> = flowOf(FrameGenerationState.Unavailable)
 }
 
 private object BitmapTestFixtures {
