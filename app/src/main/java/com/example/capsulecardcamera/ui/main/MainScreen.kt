@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.capsulecardcamera.theme.CapsuleCardCameraTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -84,6 +85,8 @@ private const val FullScreenCommitProgress = 1.24f
 private const val FullScreenEndProgress = 1.66f
 private const val StageCapturePrintDurationMillis = 2600
 private const val StageAlbumFlipDurationMillis = 560
+private const val StageCaptureIslandExpandDurationMillis = 460
+private const val StageCaptureIslandCollapseDurationMillis = 300
 
 @Composable
 fun MainScreen(
@@ -139,6 +142,8 @@ private fun PullDownIslandCameraDemo(
   val captureFlashAlpha = remember { Animatable(0f) }
   val thumbnailFlightProgress = remember { Animatable(1f) }
   val stageCaptureCurtainProgress = remember { Animatable(0f) }
+  val stageCaptureIslandProgress = remember { Animatable(0f) }
+  var stageCaptureIslandJob by remember { mutableStateOf<Job?>(null) }
   var cameraSceneTuning by remember { mutableStateOf(CameraSceneTuning.Neutral) }
   var flyingThumbnail by remember { mutableStateOf<CapturedPhoto?>(null) }
   var stageAlbumPrintPhotoId by remember { mutableStateOf<Int?>(null) }
@@ -412,8 +417,10 @@ private fun PullDownIslandCameraDemo(
   suspend fun applyPhotoAiEnhancement(
     photoId: Int,
     insight: PhotoInsight,
+    captureSceneMode: CameraSceneMode,
   ) {
     val photo = capturedPhotos.firstOrNull { it.id == photoId } ?: return
+    if (captureSceneMode != CameraSceneMode.Smart) return
     if (photo.aiEnhancementApplied) return
     val profile = PhotoEnhancementProfile.fromInsight(insight)
     val enhancedBitmap = withContext(Dispatchers.Default) { enhanceBitmap(photo.bitmap, profile) }
@@ -426,7 +433,11 @@ private fun PullDownIslandCameraDemo(
       )
   }
 
-  fun analyzeCapturedPhoto(photoId: Int, bitmap: Bitmap) {
+  fun analyzeCapturedPhoto(
+    photoId: Int,
+    bitmap: Bitmap,
+    captureSceneMode: CameraSceneMode,
+  ) {
     scope.launch {
       val analysisId = PhotoAiDiagnostics.nextAnalysisId("gemini_nano", photoId)
       val startedAt = PhotoAiDiagnostics.now()
@@ -440,7 +451,7 @@ private fun PullDownIslandCameraDemo(
           )
           updatePhotoAiState(photoId, aiState)
           if (aiState is PhotoAiState.Ready) {
-            applyPhotoAiEnhancement(photoId = photoId, insight = aiState.insight)
+            applyPhotoAiEnhancement(photoId = photoId, insight = aiState.insight, captureSceneMode = captureSceneMode)
             maybeGeneratePhotoAwareFrame(photoId)
           }
         }
@@ -478,10 +489,24 @@ private fun PullDownIslandCameraDemo(
     clearPhotoSelection()
   }
 
-  fun handleCapturedPhoto(bitmap: Bitmap): CapturedPhoto {
+  fun handleCapturedPhoto(
+    bitmap: Bitmap,
+    captureSceneMode: CameraSceneMode,
+  ): CapturedPhoto {
     val photo = addCapturedPhoto(bitmap)
-    analyzeCapturedPhoto(photo.id, bitmap)
+    analyzeCapturedPhoto(photo.id, bitmap, captureSceneMode)
     return photo
+  }
+
+  fun collapseStageCaptureIsland() {
+    stageCaptureIslandJob?.cancel()
+    stageCaptureIslandJob =
+      scope.launch {
+        stageCaptureIslandProgress.animateTo(
+          targetValue = 0f,
+          animationSpec = tween(durationMillis = StageCaptureIslandCollapseDurationMillis, easing = FastOutSlowInEasing),
+        )
+      }
   }
 
   fun playCapturePrintEffect(photo: CapturedPhoto, feedbackMode: CaptureFeedbackMode) {
@@ -514,6 +539,32 @@ private fun PullDownIslandCameraDemo(
       if (stageAlbumPrintPhotoId == photo.id) {
         stageAlbumPrintPhotoId = null
       }
+      if (feedbackMode == CaptureFeedbackMode.StageCamera) {
+        collapseStageCaptureIsland()
+      }
+    }
+  }
+
+  fun playStageCaptureIslandExpansion() {
+    stageCaptureIslandJob?.cancel()
+    stageCaptureIslandJob =
+      scope.launch {
+        stageCaptureIslandProgress.stop()
+        stageCaptureIslandProgress.snapTo(0f)
+        stageCaptureIslandProgress.animateTo(
+          targetValue = 1f,
+          animationSpec = tween(durationMillis = StageCaptureIslandExpandDurationMillis, easing = FastOutSlowInEasing),
+        )
+      }
+  }
+
+  suspend fun awaitStageCaptureIslandExpanded() {
+    stageCaptureIslandJob?.join()
+    if (stageCaptureIslandProgress.value < 0.995f) {
+      stageCaptureIslandProgress.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = StageCaptureIslandExpandDurationMillis, easing = FastOutSlowInEasing),
+      )
     }
   }
 
@@ -547,11 +598,16 @@ private fun PullDownIslandCameraDemo(
     bitmap: Bitmap,
     feedbackMode: CaptureFeedbackMode,
     collapseAfterCapture: Boolean,
+    captureSceneMode: CameraSceneMode,
   ) {
     scope.launch {
-      val enhancedBitmap = withContext(Dispatchers.Default) { enhanceBitmap(bitmap, cameraSceneTuning.enhancementProfile) }
+      val captureProfile = captureSceneMode.captureEnhancementProfile(cameraSceneTuning.enhancementProfile)
+      val enhancedBitmap = withContext(Dispatchers.Default) { enhanceBitmap(bitmap, captureProfile) }
       isCaptureInProgress = false
-      val photo = handleCapturedPhoto(enhancedBitmap)
+      val photo = handleCapturedPhoto(enhancedBitmap, captureSceneMode)
+      if (feedbackMode == CaptureFeedbackMode.StageCamera) {
+        awaitStageCaptureIslandExpanded()
+      }
       playCapturePrintEffect(photo = photo, feedbackMode = feedbackMode)
       if (collapseAfterCapture) {
         collapseCameraIsland()
@@ -614,12 +670,14 @@ private fun PullDownIslandCameraDemo(
   fun captureImmediately(collapseAfterCapture: Boolean) {
     val capture = imageCapture ?: return
     if (!hasCameraPermission || isFrameSettingsOpen || isSettingsOpen || isFrameManagerOpen || isCaptureInProgress) return
+    val captureSceneMode = cameraPreferences.cameraSceneMode
 
     countdownValue = 0
     captureLockedForFullPull = true
     isCaptureInProgress = true
     if (!collapseAfterCapture) {
       isStageAlbumOpen = false
+      playStageCaptureIslandExpansion()
       playStageCaptureCurtain()
     }
     shutterSoundPlayer.play(cameraPreferences)
@@ -631,11 +689,15 @@ private fun PullDownIslandCameraDemo(
           bitmap = bitmap,
           feedbackMode = if (collapseAfterCapture) CaptureFeedbackMode.PullList else CaptureFeedbackMode.StageCamera,
           collapseAfterCapture = collapseAfterCapture,
+          captureSceneMode = captureSceneMode,
         )
       },
       onError = {
         isCaptureInProgress = false
         captureLockedForFullPull = false
+        if (!collapseAfterCapture) {
+          collapseStageCaptureIsland()
+        }
       },
     )
   }
@@ -653,7 +715,9 @@ private fun PullDownIslandCameraDemo(
     if (displayStyleChanged) {
       isStageAlbumOpen = false
       suppressCountdownAtExpanded = false
+      stageCaptureIslandJob?.cancel()
       scope.launch { expansion.snapTo(0f) }
+      scope.launch { stageCaptureIslandProgress.snapTo(0f) }
     }
   }
 
@@ -716,7 +780,7 @@ private fun PullDownIslandCameraDemo(
     selectedPhotoIds = selectedPhotoIds.intersect(availableIds)
   }
 
-  LaunchedEffect(imageCapture, hasCameraPermission, captureLockedForFullPull, isCaptureInProgress, isStageCamera) {
+  LaunchedEffect(imageCapture, hasCameraPermission, captureLockedForFullPull, isCaptureInProgress, isStageCamera, cameraPreferences.cameraSceneMode) {
     val capture = imageCapture
     if (isStageCamera || capture == null || !hasCameraPermission || captureLockedForFullPull || isCaptureInProgress) {
       countdownValue = 0
@@ -743,6 +807,7 @@ private fun PullDownIslandCameraDemo(
       countdownValue = 0
       captureLockedForFullPull = true
       isCaptureInProgress = true
+      val captureSceneMode = cameraPreferences.cameraSceneMode
       shutterSoundPlayer.play(cameraPreferences)
       capturePhoto(
         imageCapture = capture,
@@ -752,6 +817,7 @@ private fun PullDownIslandCameraDemo(
             bitmap = bitmap,
             feedbackMode = CaptureFeedbackMode.PullList,
             collapseAfterCapture = true,
+            captureSceneMode = captureSceneMode,
           )
         },
         onError = {
@@ -954,6 +1020,7 @@ private fun PullDownIslandCameraDemo(
         albumFlipProgress = stageAlbumFlipProgress,
         latestAlbumPhoto = capturedPhotos.firstOrNull { it.id != stageAlbumPrintPhotoId },
         captureCurtainProgress = stageCaptureCurtainProgress.value,
+        dynamicIslandProgress = stageCaptureIslandProgress.value,
         onSceneTuningChanged = { cameraSceneTuning = it },
         onAlbumClick = { toggleStageAlbum() },
         onAlbumLongClick = { flipCameraAndOpenStageAlbum() },

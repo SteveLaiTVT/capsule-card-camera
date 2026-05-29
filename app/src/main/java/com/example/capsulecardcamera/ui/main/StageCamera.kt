@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -61,6 +62,7 @@ internal fun StageCamera(
   albumFlipProgress: Float,
   latestAlbumPhoto: CapturedPhoto?,
   captureCurtainProgress: Float,
+  dynamicIslandProgress: Float = 0f,
   onSceneTuningChanged: (CameraSceneTuning) -> Unit = {},
   onAlbumClick: () -> Unit,
   onAlbumLongClick: () -> Unit,
@@ -92,6 +94,7 @@ internal fun StageCamera(
 
     StageDynamicIsland(
       metrics = dynamicIslandMetrics,
+      progress = dynamicIslandProgress,
       modifier =
         Modifier
           .align(Alignment.TopStart)
@@ -223,14 +226,60 @@ private fun StageCameraBackdrop(modifier: Modifier = Modifier) {
 @Composable
 private fun StageDynamicIsland(
   metrics: DynamicIslandMetrics,
+  progress: Float,
   modifier: Modifier = Modifier,
 ) {
-  DynamicIslandPill(
-    metrics = metrics,
-    color = StageCameraInk,
-    testTag = "stage-dynamic-island",
-    modifier = modifier,
-  )
+  val clampedProgress = progress.coerceIn(0f, 1f)
+  val easedProgress = stageCameraSmoothStep(clampedProgress)
+  val startWidth =
+    if (metrics.hasCutout) {
+      metrics.height * 0.58f
+    } else {
+      metrics.height * 0.42f
+    }
+  val startHeight =
+    if (metrics.hasCutout) {
+      metrics.height * 0.42f
+    } else {
+      8.dp
+    }
+  val width = stageCameraLerpDp(startWidth, metrics.width, easedProgress)
+  val height = stageCameraLerpDp(startHeight, metrics.height, easedProgress)
+  val shape = dynamicIslandShape(top = metrics.top + (metrics.height - height) / 2f, height = height)
+  val alpha = stageCameraLerpFloat(0f, 1f, (clampedProgress / 0.2f).coerceIn(0f, 1f))
+  val rimAlpha = (clampedProgress * (1f - clampedProgress) * 0.52f).coerceIn(0f, 0.18f)
+
+  Box(
+    modifier =
+      modifier
+        .size(width = metrics.width, height = metrics.height)
+        .testTag("stage-dynamic-island"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .size(width = width, height = height)
+          .graphicsLayer { this.alpha = alpha }
+          .shadow(elevation = stageCameraLerpDp(0.dp, 8.dp, easedProgress), shape = shape, clip = false)
+          .clip(shape)
+          .background(StageCameraInk)
+          .semantics {
+            if (alpha > 0.01f) {
+              contentDescription = "Front camera dynamic island"
+            }
+          },
+    ) {
+      Canvas(modifier = Modifier.matchParentSize()) {
+        drawRoundRect(
+          color = FrameWarmWhite.copy(alpha = rimAlpha),
+          size = size,
+          cornerRadius = CornerRadius(height.toPx() / 2f, height.toPx() / 2f),
+          style = Stroke(width = 1.2.dp.toPx()),
+        )
+      }
+    }
+  }
 }
 
 @Composable
@@ -430,7 +479,7 @@ private fun StageHomeLine(modifier: Modifier = Modifier) {
 
 private fun stageCameraFrontCardProgress(progress: Float): Float {
   val normalized = (progress / 0.52f).coerceIn(0f, 1f)
-  return normalized * normalized * (3f - 2f * normalized)
+  return stageCameraSmoothStep(normalized)
 }
 
 private fun stageCameraFrontCardAlpha(progress: Float): Float =
@@ -490,3 +539,9 @@ internal fun stageCameraAlbumTop(dynamicIslandMetrics: DynamicIslandMetrics, max
 
 internal fun stageCameraAlbumButtonTop(maxHeight: Dp, navigationBarHeight: Dp): Dp =
   maxHeight - navigationBarHeight - StageCameraCornerButtonPadding - StageCameraCornerButtonSize
+
+private fun stageCameraSmoothStep(progress: Float): Float = progress * progress * (3f - 2f * progress)
+
+private fun stageCameraLerpDp(start: Dp, end: Dp, progress: Float): Dp = start + (end - start) * progress
+
+private fun stageCameraLerpFloat(start: Float, end: Float, progress: Float): Float = start + (end - start) * progress

@@ -11,6 +11,7 @@ internal data class PhotoInsight(
   val scene: String,
   val colors: List<String>,
   val confidence: PhotoInsightConfidence,
+  val cameraSceneMode: CameraSceneMode = CameraSceneMode.Smart,
   val suggestedFrameStyle: PhotoFrameStyle? = null,
   val frameReason: String = "",
 )
@@ -116,6 +117,9 @@ internal fun parsePhotoInsight(raw: String): PhotoInsight? {
     val title = payload.title.cleanText(maxLength = 48).ifBlank { tags.firstOrNull().orEmpty() }
     val subject = payload.subject.cleanText(maxLength = 40)
     val scene = payload.scene.cleanText(maxLength = 40)
+    val cameraSceneMode =
+      payload.cameraMode.toPhotoInsightCameraSceneMode()
+        ?: suggestCameraSceneMode(tags = tags, subject = subject, scene = scene, colors = colors)
     val suggestedFrameStyle =
       payload.frameStyle.toSuggestedPhotoFrameStyle()
         ?: suggestPhotoFrameStyle(tags = tags, subject = subject, scene = scene, colors = colors)
@@ -126,6 +130,7 @@ internal fun parsePhotoInsight(raw: String): PhotoInsight? {
       scene = scene,
       colors = colors,
       confidence = payload.confidence.toPhotoInsightConfidence(),
+      cameraSceneMode = cameraSceneMode,
       suggestedFrameStyle = suggestedFrameStyle,
       frameReason = payload.frameReason.cleanText(maxLength = 72),
     )
@@ -323,6 +328,7 @@ private data class PhotoInsightPayload(
   val scene: String = "",
   val colors: List<String> = emptyList(),
   @SerialName("confidence") val confidence: String = "",
+  val cameraMode: String = "",
   val frameStyle: String = "",
   val frameReason: String = "",
 )
@@ -402,6 +408,14 @@ private fun String.toSuggestedPhotoFrameStyle(): PhotoFrameStyle? =
     "polaroid", "instant" -> PhotoFrameStyle.Polaroid
     "film", "cinematic" -> PhotoFrameStyle.Film
     "color", "colorpop", "color_pop", "pop" -> PhotoFrameStyle.ColorPop
+    else -> null
+  }
+
+private fun String.toPhotoInsightCameraSceneMode(): CameraSceneMode? =
+  when (trim().lowercase()) {
+    "portrait", "person", "people", "selfie" -> CameraSceneMode.Portrait
+    "scenery", "scene", "landscape", "view", "travel", "outdoor", "nature" -> CameraSceneMode.Scenery
+    "food", "drink", "meal", "dessert" -> CameraSceneMode.Food
     else -> null
   }
 
@@ -587,5 +601,19 @@ private fun suggestPhotoFrameStyle(
     listOf("portrait", "person", "selfie", "warm", "home", "family").any { it in text } -> PhotoFrameStyle.Polaroid
     listOf("food", "flower", "toy", "art", "bright", "red", "orange", "green").any { it in text } -> PhotoFrameStyle.ColorPop
     else -> PhotoFrameStyle.Stamp
+  }
+}
+
+internal fun suggestCameraSceneMode(
+  tags: List<String>,
+  subject: String,
+  scene: String,
+  colors: List<String>,
+): CameraSceneMode {
+  val text = (tags + subject + scene + colors).joinToString(" ").lowercase()
+  return when {
+    listOf("food", "meal", "drink", "cake", "dessert", "coffee", "tea", "restaurant", "table").any { it in text } -> CameraSceneMode.Food
+    listOf("portrait", "person", "people", "face", "selfie", "skin", "hair", "family").any { it in text } -> CameraSceneMode.Portrait
+    else -> CameraSceneMode.Scenery
   }
 }

@@ -21,6 +21,7 @@ class PhotoAiAnalysisTest {
           "scene": "urban street",
           "colors": ["red", "cream", "black", "gold", "ignored"],
           "confidence": "high",
+          "cameraMode": "portrait",
           "frameStyle": "film",
           "frameReason": "Cinematic street mood"
         }
@@ -33,6 +34,7 @@ class PhotoAiAnalysisTest {
     assertEquals(listOf("portrait", "street", "warm light", "city", "extra", "ignored"), insight?.tags)
     assertEquals(listOf("red", "cream", "black", "gold"), insight?.colors)
     assertEquals(PhotoInsightConfidence.High, insight?.confidence)
+    assertEquals(CameraSceneMode.Portrait, insight?.cameraSceneMode)
     assertEquals(PhotoFrameStyle.Film, insight?.suggestedFrameStyle)
     assertEquals("Cinematic street mood", insight?.frameReason)
   }
@@ -64,6 +66,19 @@ class PhotoAiAnalysisTest {
       )
 
     assertEquals(PhotoFrameStyle.ColorPop, insight?.suggestedFrameStyle)
+    assertEquals(CameraSceneMode.Food, insight?.cameraSceneMode)
+  }
+
+  @Test
+  fun parsePhotoInsight_acceptsSceneryCameraModeAliases() {
+    val insight =
+      parsePhotoInsight(
+        """
+        {"title":"Mountain","tags":["sky"],"subject":"mountain","scene":"outdoor","colors":["blue"],"confidence":"high","cameraMode":"landscape"}
+        """.trimIndent(),
+      )
+
+    assertEquals(CameraSceneMode.Scenery, insight?.cameraSceneMode)
   }
 
   @Test
@@ -187,6 +202,12 @@ class PhotoAiAnalysisTest {
     assertTrue(prompt.contains("\"photoTreatment\""))
     assertTrue(prompt.contains("\"themeOverlay\""))
     assertTrue(prompt.contains("Output stamp only if the user request explicitly contains stamp or postage"))
+  }
+
+  @Test
+  fun photoInsightPrompt_requestsCameraMode() {
+    assertTrue(photoInsightPromptForTests().contains("\"cameraMode\":\"portrait|scenery|food\""))
+    assertTrue(photoInsightPromptForTests().contains("Pick one cameraMode"))
   }
 
   @Test

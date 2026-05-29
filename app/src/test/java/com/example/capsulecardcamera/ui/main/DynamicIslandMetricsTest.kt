@@ -9,13 +9,13 @@ import org.junit.Test
 class DynamicIslandMetricsTest {
 
   @Test
-  fun fallbackDynamicIslandMetrics_usesComfortCoverByDefault() {
+  fun fallbackDynamicIslandMetrics_usesMinimalCoverByDefault() {
     val metrics = fallbackDynamicIslandMetrics(maxWidth = 390.dp)
 
-    assertEquals(8.dp, metrics.top)
-    assertEquals(111.dp, metrics.left)
-    assertEquals(168.dp, metrics.width)
-    assertEquals(46.dp, metrics.height)
+    assertEquals(6.dp, metrics.top)
+    assertEquals(131.dp, metrics.left)
+    assertEquals(128.dp, metrics.width)
+    assertEquals(44.dp, metrics.height)
     assertFalse(metrics.hasCutout)
   }
 
@@ -30,13 +30,13 @@ class DynamicIslandMetricsTest {
         cutoutWidth = 20.dp,
         cutoutHeight = 18.dp,
         safeInsetTop = 42.dp,
-        coverMode = DynamicIslandCoverMode.Maximum,
+        coverMode = DynamicIslandCoverMode.Precise,
       )
 
-    assertEquals(14.dp, metrics.top)
-    assertEquals(102.dp, metrics.left)
-    assertEquals(196.dp, metrics.width)
-    assertEquals(60.dp, metrics.height)
+    assertEquals(24.dp, metrics.top)
+    assertEquals(136.dp, metrics.left)
+    assertEquals(128.dp, metrics.width)
+    assertEquals(44.dp, metrics.height)
     assertTrue(metrics.hasCutout)
   }
 
@@ -51,12 +51,12 @@ class DynamicIslandMetricsTest {
         cutoutWidth = 22.dp,
         cutoutHeight = 28.dp,
         safeInsetTop = 34.dp,
-        coverMode = DynamicIslandCoverMode.Comfort,
+        coverMode = DynamicIslandCoverMode.Precise,
       )
 
-    assertEquals(8.dp, metrics.top)
-    assertEquals(168.dp, metrics.width)
-    assertTrue(metrics.height >= 46.dp)
+    assertEquals(6.dp, metrics.top)
+    assertEquals(128.dp, metrics.width)
+    assertTrue(metrics.height >= 44.dp)
     assertTrue(metrics.hasCutout)
   }
 }

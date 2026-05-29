@@ -57,4 +57,25 @@ class CameraSceneTuningTest {
     assertTrue(profile.contrast > 1.08f)
     assertTrue(profile.saturation < 1f)
   }
+
+  @Test
+  fun cameraSceneModeProfiles_applyDistinctToneParameters() {
+    val portrait = PhotoEnhancementProfile.fromCameraSceneMode(CameraSceneMode.Portrait)
+    val scenery = PhotoEnhancementProfile.fromCameraSceneMode(CameraSceneMode.Scenery)
+    val food = PhotoEnhancementProfile.fromCameraSceneMode(CameraSceneMode.Food)
+
+    assertTrue(portrait.warmth > scenery.warmth)
+    assertTrue(scenery.saturation > portrait.saturation)
+    assertTrue(food.saturation > scenery.saturation)
+  }
+
+  @Test
+  fun manualCameraSceneModeBlendsWithLiveTuning() {
+    val liveProfile = PhotoEnhancementProfile(exposure = 0.1f, contrast = 1.04f, saturation = 1.04f, warmth = 0.01f)
+    val foodProfile = CameraSceneMode.Food.captureEnhancementProfile(liveProfile)
+
+    assertTrue(foodProfile.saturation > liveProfile.saturation)
+    assertTrue(foodProfile.warmth > liveProfile.warmth)
+    assertEquals(liveProfile, CameraSceneMode.Smart.captureEnhancementProfile(liveProfile))
+  }
 }

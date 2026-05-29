@@ -150,7 +150,7 @@ internal fun cutoutDynamicIslandMetrics(
 
 internal fun fallbackDynamicIslandMetrics(
   maxWidth: Dp,
-  coverMode: DynamicIslandCoverMode = DynamicIslandCoverMode.Comfort,
+  coverMode: DynamicIslandCoverMode = DynamicIslandCoverMode.Precise,
 ): DynamicIslandMetrics {
   val profile = coverMode.coverProfile()
   val width = profile.minWidth.coerceAtMost(maxWidth * profile.maxWidthFraction)
@@ -190,32 +190,6 @@ private fun DynamicIslandCoverMode.coverProfile(): DynamicIslandCoverProfile =
         safeInsetBottomOverscan = 4.dp,
         statusBarBottomOverscan = 0.dp,
         maxWidthFraction = 0.56f,
-      )
-    DynamicIslandCoverMode.Comfort ->
-      DynamicIslandCoverProfile(
-        minWidth = 168.dp,
-        minHeight = 46.dp,
-        maxHeight = 58.dp,
-        horizontalOverscan = 134.dp,
-        topClearance = 8.dp,
-        topOverscan = 4.dp,
-        bottomOverscan = 16.dp,
-        safeInsetBottomOverscan = 8.dp,
-        statusBarBottomOverscan = 4.dp,
-        maxWidthFraction = 0.66f,
-      )
-    DynamicIslandCoverMode.Maximum ->
-      DynamicIslandCoverProfile(
-        minWidth = 196.dp,
-        minHeight = 60.dp,
-        maxHeight = 74.dp,
-        horizontalOverscan = 172.dp,
-        topClearance = 10.dp,
-        topOverscan = 10.dp,
-        bottomOverscan = 26.dp,
-        safeInsetBottomOverscan = 14.dp,
-        statusBarBottomOverscan = 8.dp,
-        maxWidthFraction = 0.78f,
       )
   }
 

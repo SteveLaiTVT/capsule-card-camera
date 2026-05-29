@@ -248,7 +248,30 @@ class MainScreenTest {
   }
 
   @Test
-  fun settingsScreen_switchesDynamicIslandCoverMode() {
+  fun settingsScreen_switchesCameraSceneMode() {
+    var selectedPreferences = CameraPreferences(language = CameraLanguage.English)
+    composeTestRule.setContent {
+      var preferences by remember { mutableStateOf(selectedPreferences) }
+      CameraSettingsScreen(
+        preferences = preferences,
+        onPreferencesChanged = {
+          preferences = it
+          selectedPreferences = it
+        },
+        onClose = {},
+      )
+    }
+
+    composeTestRule.onNodeWithTag("camera-scene-mode-setting").assertExists()
+    composeTestRule.onNodeWithTag("camera-scene-mode-food").performClick()
+
+    composeTestRule.runOnIdle {
+      assertEquals(CameraSceneMode.Food, selectedPreferences.cameraSceneMode)
+    }
+  }
+
+  @Test
+  fun settingsScreen_showsMinimalDynamicIslandCoverModeOnly() {
     var selectedPreferences = CameraPreferences(language = CameraLanguage.English)
     composeTestRule.setContent {
       var preferences by remember { mutableStateOf(selectedPreferences) }
@@ -263,10 +286,13 @@ class MainScreenTest {
     }
 
     composeTestRule.onNodeWithTag("dynamic-island-cover-setting").assertExists()
-    composeTestRule.onNodeWithTag("dynamic-island-cover-maximum").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("dynamic-island-cover-precise").performScrollTo().assertExists().performClick()
+    composeTestRule.onNodeWithText("Minimal").assertExists()
+    composeTestRule.onAllNodesWithTag("dynamic-island-cover-comfort").assertCountEquals(0)
+    composeTestRule.onAllNodesWithTag("dynamic-island-cover-maximum").assertCountEquals(0)
 
     composeTestRule.runOnIdle {
-      assertEquals(DynamicIslandCoverMode.Maximum, selectedPreferences.dynamicIslandCoverMode)
+      assertEquals(DynamicIslandCoverMode.Precise, selectedPreferences.dynamicIslandCoverMode)
     }
   }
 

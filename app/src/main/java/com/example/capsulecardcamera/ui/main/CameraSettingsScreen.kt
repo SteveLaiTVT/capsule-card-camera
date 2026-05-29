@@ -151,6 +151,28 @@ internal fun CameraSettingsScreen(
       }
 
       SettingGroup(
+        title = copy.cameraSceneModeTitle,
+        modifier =
+          Modifier
+            .padding(top = 24.dp)
+            .testTag("camera-scene-mode-setting"),
+      ) {
+        SettingOptionsRow {
+          CameraSceneMode.entries.forEach { mode ->
+            SettingOption(
+              label = mode.displayName(copy),
+              selected = preferences.cameraSceneMode == mode,
+              onClick = { onPreferencesChanged(preferences.copy(cameraSceneMode = mode)) },
+              modifier =
+                Modifier
+                  .weight(1f)
+                  .testTag("camera-scene-mode-${mode.storageKey}"),
+            )
+          }
+        }
+      }
+
+      SettingGroup(
         title = copy.cameraDisplayStyleTitle,
         modifier =
           Modifier

@@ -291,9 +291,11 @@ private const val DownloadProgressLogWindowMillis = 1_000L
 private const val PhotoInsightPrompt =
   """
 Return only compact JSON for this photo:
-{"title":"...","tags":["..."],"subject":"...","scene":"...","colors":["..."],"confidence":"low|medium|high","frameStyle":"stamp|polaroid|film|color","frameReason":"..."}
-Prioritize the centered subject in the middle 40% of the image. Treat edges as scene context only. Use at most 6 short English tags and 4 colors. Pick one frameStyle. Do not name people or private attributes. No Markdown.
+{"title":"...","tags":["..."],"subject":"...","scene":"...","colors":["..."],"confidence":"low|medium|high","cameraMode":"portrait|scenery|food","frameStyle":"stamp|polaroid|film|color","frameReason":"..."}
+Prioritize the centered subject in the middle 40% of the image. Treat edges as scene context only. Use at most 6 short English tags and 4 colors. Pick one cameraMode and one frameStyle. Use portrait for people, scenery for landscapes/views/streets/objects, food for meals/drinks/desserts. Do not name people or private attributes. No Markdown.
   """
+
+internal fun photoInsightPromptForTests(): String = PhotoInsightPrompt
 
 private fun String.logPreview(maxLength: Int = 160): String =
   replace(Regex("\\s+"), " ")

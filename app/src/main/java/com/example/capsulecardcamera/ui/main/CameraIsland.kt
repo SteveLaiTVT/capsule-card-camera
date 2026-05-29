@@ -9,6 +9,9 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -61,6 +64,7 @@ import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
 import kotlinx.coroutines.delay
 
 private val CameraIslandBlack = Color(0xFF060606)
@@ -274,10 +278,17 @@ internal fun CameraSurfacePreview(
   var camera by remember { mutableStateOf<Camera?>(null) }
   var focusPoint by remember { mutableStateOf<Offset?>(null) }
   var focusNonce by remember { mutableIntStateOf(0) }
+  val focusProgress = remember { Animatable(1f) }
 
   LaunchedEffect(focusNonce) {
     if (focusPoint != null) {
-      delay(1250L)
+      focusProgress.stop()
+      focusProgress.snapTo(0f)
+      focusProgress.animateTo(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+      )
+      delay(420L)
       focusPoint = null
     }
   }
@@ -306,6 +317,7 @@ internal fun CameraSurfacePreview(
     )
     CameraMeteringOverlay(
       focusPoint = focusPoint,
+      focusProgress = focusProgress.value,
       alpha = meteringOverlayAlpha,
       modifier = Modifier.matchParentSize(),
     )
@@ -328,16 +340,19 @@ internal fun CameraSurfacePreview(
 @Composable
 private fun CameraMeteringOverlay(
   focusPoint: Offset?,
+  focusProgress: Float,
   alpha: Float,
   modifier: Modifier = Modifier,
 ) {
+  val focusAlpha = if (focusPoint == null) 0f else (1f - ((focusProgress - 0.58f) / 0.42f).coerceIn(0f, 1f))
+  val assistAlpha = alpha.coerceIn(0f, 1f)
   Canvas(
     modifier =
       modifier
-        .graphicsLayer { this.alpha = alpha.coerceIn(0f, 1f) }
+        .graphicsLayer { this.alpha = max(assistAlpha, focusAlpha) }
         .testTag("camera-metering-overlay"),
   ) {
-    val gridColor = Color.White.copy(alpha = 0.22f)
+    val gridColor = Color.White.copy(alpha = 0.22f * assistAlpha)
     val gridStroke = 0.8.dp.toPx()
     drawLine(gridColor, Offset(size.width / 3f, 0f), Offset(size.width / 3f, size.height), gridStroke)
     drawLine(gridColor, Offset(size.width * 2f / 3f, 0f), Offset(size.width * 2f / 3f, size.height), gridStroke)
@@ -345,7 +360,7 @@ private fun CameraMeteringOverlay(
     drawLine(gridColor, Offset(0f, size.height * 2f / 3f), Offset(size.width, size.height * 2f / 3f), gridStroke)
 
     val center = Offset(size.width * 0.5f, size.height * 0.5f)
-    val reticleColor = Color.White.copy(alpha = 0.42f)
+    val reticleColor = Color.White.copy(alpha = 0.42f * assistAlpha)
     drawCircle(reticleColor, radius = 3.dp.toPx(), center = center, style = Stroke(width = 1.dp.toPx()))
     drawLine(reticleColor, Offset(center.x - 18.dp.toPx(), center.y), Offset(center.x - 7.dp.toPx(), center.y), 1.dp.toPx())
     drawLine(reticleColor, Offset(center.x + 7.dp.toPx(), center.y), Offset(center.x + 18.dp.toPx(), center.y), 1.dp.toPx())
@@ -353,8 +368,9 @@ private fun CameraMeteringOverlay(
     drawLine(reticleColor, Offset(center.x, center.y + 7.dp.toPx()), Offset(center.x, center.y + 18.dp.toPx()), 1.dp.toPx())
 
     val point = focusPoint ?: return@Canvas
-    val ringColor = FrameGreen.copy(alpha = 0.9f)
-    val ringRadius = 34.dp.toPx()
+    val settleProgress = cameraIslandSmoothStep((focusProgress / 0.58f).coerceIn(0f, 1f))
+    val ringColor = FrameGreen.copy(alpha = 0.95f * focusAlpha)
+    val ringRadius = cameraIslandLerpFloat(46.dp.toPx(), 30.dp.toPx(), settleProgress)
     drawCircle(ringColor, radius = ringRadius, center = point, style = Stroke(width = 2.dp.toPx()))
     drawLine(ringColor, Offset(point.x - ringRadius, point.y), Offset(point.x - ringRadius + 10.dp.toPx(), point.y), 2.dp.toPx())
     drawLine(ringColor, Offset(point.x + ringRadius - 10.dp.toPx(), point.y), Offset(point.x + ringRadius, point.y), 2.dp.toPx())
@@ -370,14 +386,14 @@ private fun CameraMeteringOverlay(
         preferredHeight = 84.dp.toPx(),
       ) ?: return@Canvas
     drawLine(
-      color = Color.White.copy(alpha = 0.78f),
+      color = Color.White.copy(alpha = 0.78f * focusAlpha),
       start = Offset(exposureX, exposureTrack.top),
       end = Offset(exposureX, exposureTrack.top + exposureTrack.height),
       strokeWidth = 1.3.dp.toPx(),
       cap = StrokeCap.Round,
     )
     drawCircle(
-      color = FrameWarmWhite.copy(alpha = 0.92f),
+      color = FrameWarmWhite.copy(alpha = 0.92f * focusAlpha),
       radius = 5.dp.toPx(),
       center = Offset(exposureX, exposureTrack.top + exposureTrack.height / 2f),
     )
@@ -747,3 +763,5 @@ private fun FullScreenThresholdCue(
 private fun cameraIslandLerpDp(start: Dp, end: Dp, progress: Float): Dp = start + (end - start) * progress
 
 private fun cameraIslandLerpFloat(start: Float, end: Float, progress: Float): Float = start + (end - start) * progress
+
+private fun cameraIslandSmoothStep(progress: Float): Float = progress * progress * (3f - 2f * progress)

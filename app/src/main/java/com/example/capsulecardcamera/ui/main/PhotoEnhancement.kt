@@ -54,17 +54,55 @@ internal data class PhotoEnhancementProfile(
           PhotoEnhancementProfile(exposure = 0.08f, contrast = 1.08f, saturation = 1.035f, warmth = 0.015f)
         listOf("document", "screen", "monitor", "text", "paper", "keyboard").any { it in text } ->
           PhotoEnhancementProfile(exposure = 0.025f, contrast = 1.11f, saturation = 0.96f, warmth = 0f)
-        listOf("food", "flower", "toy", "product", "bright", "red", "orange", "green").any { it in text } ->
-          PhotoEnhancementProfile(exposure = 0.02f, contrast = 1.055f, saturation = 1.11f, warmth = 0.015f)
         else ->
-          PhotoEnhancementProfile(exposure = 0.02f, contrast = 1.045f, saturation = 1.04f, warmth = 0.01f)
+          fromCameraSceneMode(
+            if (insight.cameraSceneMode == CameraSceneMode.Smart) {
+              suggestCameraSceneMode(
+                tags = insight.tags,
+                subject = insight.subject,
+                scene = insight.scene,
+                colors = insight.colors,
+              )
+            } else {
+              insight.cameraSceneMode
+            },
+          )
       }
     }
+
+    fun fromCameraSceneMode(mode: CameraSceneMode): PhotoEnhancementProfile =
+      when (mode) {
+        CameraSceneMode.Smart -> Neutral
+        CameraSceneMode.Portrait -> PhotoEnhancementProfile(exposure = 0.035f, contrast = 1.035f, saturation = 1.055f, warmth = 0.03f)
+        CameraSceneMode.Scenery -> PhotoEnhancementProfile(exposure = 0.015f, contrast = 1.075f, saturation = 1.13f, warmth = 0.005f)
+        CameraSceneMode.Food -> PhotoEnhancementProfile(exposure = 0.03f, contrast = 1.055f, saturation = 1.16f, warmth = 0.035f)
+      }
   }
 
   fun isNeutral(): Boolean =
     exposure == 0f && contrast == 1f && saturation == 1f && warmth == 0f
+
+  fun mixedWith(
+    other: PhotoEnhancementProfile,
+    otherWeight: Float,
+  ): PhotoEnhancementProfile {
+    val weight = otherWeight.coerceIn(0f, 1f)
+    return PhotoEnhancementProfile(
+      exposure = enhancementLerp(exposure, other.exposure, weight),
+      contrast = enhancementLerp(contrast, other.contrast, weight),
+      saturation = enhancementLerp(saturation, other.saturation, weight),
+      warmth = enhancementLerp(warmth, other.warmth, weight),
+    )
+  }
 }
+
+internal fun CameraSceneMode.captureEnhancementProfile(liveProfile: PhotoEnhancementProfile): PhotoEnhancementProfile =
+  when (this) {
+    CameraSceneMode.Smart -> liveProfile
+    else -> liveProfile.mixedWith(PhotoEnhancementProfile.fromCameraSceneMode(this), otherWeight = 0.72f)
+  }
+
+private fun enhancementLerp(start: Float, end: Float, progress: Float): Float = start + (end - start) * progress
 
 internal fun enhanceBitmap(
   bitmap: Bitmap,

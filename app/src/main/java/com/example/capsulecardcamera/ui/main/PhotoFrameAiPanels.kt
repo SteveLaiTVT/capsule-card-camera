@@ -146,6 +146,15 @@ private fun PhotoAiInsightContent(
     overflow = TextOverflow.Ellipsis,
     modifier = Modifier.padding(top = 2.dp),
   )
+  Text(
+    text = "${copy.aiCaptureModeLabel}: ${insight.cameraSceneMode.displayName(copy)}",
+    color = FrameWarmWhite.copy(alpha = 0.68f),
+    fontSize = 10.sp,
+    lineHeight = 13.sp,
+    maxLines = 1,
+    overflow = TextOverflow.Ellipsis,
+    modifier = Modifier.padding(top = 2.dp),
+  )
 
   val suggestedFrameStyle = insight.suggestedFrameStyle
   if (suggestedFrameStyle != null) {
